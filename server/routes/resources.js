@@ -100,8 +100,26 @@ function parseRangeHeader(value, size) {
 }
 
 function contentDisposition(filename) {
-  const fallback = filename.replace(/["\\\r\n]/g, "_");
+  const fallback = asciiFilenameFallback(filename);
   return `inline; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function asciiFilenameFallback(filename) {
+  const source = typeof filename === "string" ? filename : "";
+  const dot = source.lastIndexOf(".");
+  const ext = dot >= 0 ? source.slice(dot + 1) : "";
+  const safeExt = /^[A-Za-z0-9]{1,12}$/.test(ext) ? `.${ext}` : "";
+  const stem = source
+    .slice(0, dot >= 0 ? dot : source.length)
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/["\\\r\n;/]/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return /^[A-Za-z0-9._-]+$/.test(stem)
+    ? `${stem}${safeExt}`
+    : `download${safeExt}`;
 }
 
 function resourceRouteError(c, err) {

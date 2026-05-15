@@ -75,6 +75,32 @@ describe("resources route", () => {
     expect(await res.text()).toBe("hello resources\n");
   });
 
+  it("serves local content whose filename contains non-ASCII characters", async () => {
+    const { createResourcesRoute } = await import("../server/routes/resources.js");
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-resources-route-"));
+    const filePath = path.join(tmpDir, "粘贴图片_mp0qkfvq_eb2b8042.png");
+    fs.writeFileSync(filePath, "png-bytes", "utf-8");
+    const app = new Hono();
+    app.route("/api", createResourcesRoute({
+      resolveResourceContent: () => ({
+        resourceId: "res_sf_cjk",
+        filePath,
+        mime: "image/png",
+        size: Buffer.byteLength("png-bytes"),
+        filename: "粘贴图片_mp0qkfvq_eb2b8042.png",
+      }),
+    }));
+
+    const res = await app.request("/api/resources/res_sf_cjk/content");
+
+    expect(res.status).toBe(200);
+    const disposition = res.headers.get("content-disposition") || "";
+    expect(disposition).toContain("filename*=UTF-8''");
+    expect(disposition).toContain("%E7%B2%98%E8%B4%B4%E5%9B%BE%E7%89%87");
+    expect(disposition).not.toMatch(/[^\x00-\x7F]/);
+    expect(await res.text()).toBe("png-bytes");
+  });
+
   it("serves a byte range for local resource content", async () => {
     const { createResourcesRoute } = await import("../server/routes/resources.js");
     const filePath = makeFile();
