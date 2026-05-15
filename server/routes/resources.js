@@ -2,14 +2,16 @@ import fs from "fs";
 import { Readable } from "stream";
 import { Hono } from "hono";
 import { ResourceError } from "../../core/resource-service.js";
+import { createRequestContext, jsonError } from "../http/boundary.js";
 
 export function createResourcesRoute(engine) {
   const route = new Hono();
 
   route.get("/resources/:resourceId", (c) => {
     try {
-      const resource = getResource(engine, c.req.param("resourceId"));
-      if (!resource) return c.json({ error: "resource_not_found" }, 404);
+      const requestContext = createRequestContext(c, engine);
+      const resource = getResource(engine, c.req.param("resourceId"), requestContext);
+      if (!resource) return jsonError(c, { code: "resource_not_found", status: 404 });
       return c.json(resource);
     } catch (err) {
       return resourceRouteError(c, err);
@@ -22,17 +24,19 @@ export function createResourcesRoute(engine) {
   return route;
 }
 
-function getResource(engine, resourceId) {
-  if (typeof engine?.getResource === "function") return engine.getResource(resourceId);
-  return engine?.resources?.getResource?.(resourceId) || null;
+function getResource(engine, resourceId, requestContext) {
+  const options = { requestContext };
+  if (typeof engine?.getResource === "function") return engine.getResource(resourceId, options);
+  return engine?.resources?.getResource?.(resourceId, options) || null;
 }
 
-function resolveResourceContent(engine, resourceId) {
+function resolveResourceContent(engine, resourceId, requestContext) {
+  const options = { requestContext };
   if (typeof engine?.resolveResourceContent === "function") {
-    return engine.resolveResourceContent(resourceId);
+    return engine.resolveResourceContent(resourceId, options);
   }
   if (typeof engine?.resources?.resolveContent === "function") {
-    return engine.resources.resolveContent(resourceId);
+    return engine.resources.resolveContent(resourceId, options);
   }
   throw new ResourceError("resource service unavailable", {
     status: 500,
@@ -42,7 +46,8 @@ function resolveResourceContent(engine, resourceId) {
 
 function serveResourceContent(c, engine, headOnly) {
   try {
-    const content = resolveResourceContent(engine, c.req.param("resourceId"));
+    const requestContext = createRequestContext(c, engine);
+    const content = resolveResourceContent(engine, c.req.param("resourceId"), requestContext);
     if (c.req.header("if-none-match") && c.req.header("if-none-match") === content.etag) {
       c.header("ETag", content.etag);
       return c.body(null, 304);
@@ -124,10 +129,11 @@ function asciiFilenameFallback(filename) {
 
 function resourceRouteError(c, err) {
   if (err instanceof ResourceError) {
-    return c.json({ error: err.code, detail: err.message }, err.status);
+    return jsonError(c, { code: err.code, detail: err.message, status: err.status });
   }
-  return c.json({
-    error: "resource_error",
+  return jsonError(c, {
+    code: "resource_error",
     detail: err?.message || String(err),
-  }, 500);
+    status: 500,
+  });
 }

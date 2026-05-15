@@ -36,4 +36,12 @@ export interface FileRef {
   sessionMessageId?: string;
   sessionBlockIdx?: number;
   inlineData?: { base64: string; mimeType: string };
+  resource?: {
+    resourceId: string;
+    spaceId: string;
+    links: {
+      self: string;
+      content?: string;
+    };
+  };
 }

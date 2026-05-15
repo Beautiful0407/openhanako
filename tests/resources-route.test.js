@@ -50,6 +50,79 @@ describe("resources route", () => {
     });
   });
 
+  it("passes request context into the resource service", async () => {
+    const { createResourcesRoute } = await import("../server/routes/resources.js");
+    let seenContext = null;
+    const app = new Hono();
+    app.route("/api", createResourcesRoute({
+      getRuntimeContext: () => ({
+        serverId: "server_ctx",
+        userId: "user_ctx",
+        spaceId: "space_ctx",
+        connectionKind: "local",
+        credentialKind: "loopback_token",
+        platformAccountId: null,
+        officialServiceKind: null,
+      }),
+      getResource: (_resourceId, options = {}) => {
+        seenContext = options.requestContext;
+        return {
+          schemaVersion: 1,
+          resourceId: "res_sf_ctx",
+          name: "spaces/space_ctx/resources/res_sf_ctx",
+          spaceId: "space_ctx",
+          type: "file",
+          source: "session_file",
+          fileId: "sf_ctx",
+          displayName: "ctx.txt",
+          lifecycle: { status: "available", missingAt: null },
+          links: {
+            self: "/api/resources/res_sf_ctx",
+            content: "/api/resources/res_sf_ctx/content",
+          },
+        };
+      },
+    }));
+
+    const res = await app.request("/api/resources/res_sf_ctx");
+
+    expect(res.status).toBe(200);
+    expect(seenContext).toMatchObject({
+      serverId: "server_ctx",
+      userId: "user_ctx",
+      spaceId: "space_ctx",
+      connectionKind: "local",
+      credentialKind: "loopback_token",
+      authPrincipal: {
+        kind: "local_user",
+        userId: "user_ctx",
+        credentialKind: "loopback_token",
+      },
+    });
+    expect(seenContext.request.method).toBe("GET");
+  });
+
+  it("fails explicitly when request context cannot be created", async () => {
+    const { createResourcesRoute } = await import("../server/routes/resources.js");
+    const app = new Hono();
+    app.route("/api", createResourcesRoute({
+      getRuntimeContext: () => {
+        throw new Error("identity context not initialized");
+      },
+      getResource: () => {
+        throw new Error("should not be called");
+      },
+    }));
+
+    const res = await app.request("/api/resources/res_sf_no_context");
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      error: "resource_error",
+      detail: "identity context not initialized",
+    });
+  });
+
   it("streams local resource content and supports HEAD metadata", async () => {
     const { createResourcesRoute } = await import("../server/routes/resources.js");
     const filePath = makeFile();

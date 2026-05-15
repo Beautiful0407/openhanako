@@ -16,10 +16,14 @@ import { FileOutputActions } from './FileOutputActions';
 const lazyScreenshot = () => import('../../utils/screenshot').then(m => m.takeScreenshot);
 import type { ChatMessage, ContentBlock } from '../../stores/chat-types';
 import { useStore } from '../../stores';
+import { selectSessionFiles } from '../../stores/selectors/file-refs';
 import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { openFilePreview, openSkillPreview } from '../../utils/file-preview';
 import { openMediaViewerForRef } from '../../utils/open-media-viewer';
 import { buildFileRefId, isImageOrSvgExt } from '../../utils/file-kind';
+import { resolveServerConnection } from '../../services/server-connection';
+import { resolveFileRefUrl } from '../../services/resource-url';
+import type { FileRef } from '../../types/file-ref';
 import { openPreview } from '../../stores/preview-actions';
 import { selectIsStreamingSession, selectSelectedIdsBySession } from '../../stores/session-selectors';
 import { extractSelectedTexts } from '../../utils/message-text';
@@ -198,9 +202,22 @@ interface FileBlockCtx {
   blockIdx: number;
 }
 
-const ImageOutputCard = memo(function ImageOutputCard({ filePath, label, ext, status, ctx }: { filePath: string; label: string; ext: string; status?: string; ctx: FileBlockCtx }) {
+const ImageOutputCard = memo(function ImageOutputCard({ fileId, filePath, label, ext, status, ctx }: { fileId?: string; filePath: string; label: string; ext: string; status?: string; ctx: FileBlockCtx }) {
   const [failed, setFailed] = useState(false);
   const displayName = label || filePath.split('/').pop() || filePath;
+  const imageSrc = useStore(useCallback((state) => {
+    const files = selectSessionFiles(state, ctx.sessionPath);
+    const ref = files.find(file => (fileId && file.fileId === fileId) || file.path === filePath)
+      ?? buildFallbackImageRef({ fileId, filePath, label: displayName, ext, ctx });
+    try {
+      return resolveFileRefUrl(ref, {
+        connection: resolveServerConnection(state),
+        platform: window.platform,
+      }).url;
+    } catch {
+      return '';
+    }
+  }, [ctx, displayName, ext, fileId, filePath]));
 
   if (status === 'expired') return <FileOutputCard filePath={filePath} label={label} ext={ext} status={status} ctx={ctx} />;
   if (failed) return <FileOutputCard filePath={filePath} label={label} ext={ext} status={status} ctx={ctx} />;
@@ -212,12 +229,13 @@ const ImageOutputCard = memo(function ImageOutputCard({ filePath, label, ext, st
         origin: 'session',
         sessionPath: ctx.sessionPath,
         messageId: ctx.messageId,
+        fileId,
         blockIdx: ctx.blockIdx,
       })}
       style={{ cursor: 'pointer' }}
     >
       <img
-        src={window.platform?.getFileUrl?.(filePath) ?? ''}
+        src={imageSrc}
         alt={displayName}
         className={styles.imageOutputPreview}
         onError={() => setFailed(true)}
@@ -227,7 +245,39 @@ const ImageOutputCard = memo(function ImageOutputCard({ filePath, label, ext, st
   );
 });
 
-const FileOutputCard = memo(function FileOutputCard({ filePath, label, ext, status, ctx }: { filePath: string; label: string; ext: string; status?: string; ctx: FileBlockCtx }) {
+function buildFallbackImageRef({
+  fileId,
+  filePath,
+  label,
+  ext,
+  ctx,
+}: {
+  fileId?: string;
+  filePath: string;
+  label: string;
+  ext: string;
+  ctx: FileBlockCtx;
+}): FileRef {
+  return {
+    id: buildFileRefId({
+      source: 'session-block-file',
+      sessionPath: ctx.sessionPath,
+      messageId: ctx.messageId,
+      blockIdx: ctx.blockIdx,
+      path: filePath,
+    }),
+    fileId,
+    kind: ext.toLowerCase() === 'svg' ? 'svg' : 'image',
+    source: 'session-block-file',
+    name: label,
+    path: filePath,
+    ext,
+    sessionMessageId: ctx.messageId,
+    sessionBlockIdx: ctx.blockIdx,
+  };
+}
+
+const FileOutputCard = memo(function FileOutputCard({ fileId, filePath, label, ext, status, ctx }: { fileId?: string; filePath: string; label: string; ext: string; status?: string; ctx: FileBlockCtx }) {
   const expired = status === 'expired';
   const expiredLabel = window.t('chat.fileExpired');
   const handlePreview = () => {
@@ -236,6 +286,7 @@ const FileOutputCard = memo(function FileOutputCard({ filePath, label, ext, stat
       origin: 'session',
       sessionPath: ctx.sessionPath,
       messageId: ctx.messageId,
+      fileId,
       blockIdx: ctx.blockIdx,
     });
   };
@@ -278,8 +329,8 @@ const FileBlock = memo(function FileBlock({ block, sessionPath, messageId, block
   const ctx: FileBlockCtx = { sessionPath, messageId, blockIdx };
   // 扩展名识别统一走中心表（inferKindByExt via isImageOrSvgExt）
   return isImageOrSvgExt(block.ext)
-    ? <ImageOutputCard filePath={block.filePath} label={block.label} ext={block.ext} status={block.status} ctx={ctx} />
-    : <FileOutputCard filePath={block.filePath} label={block.label} ext={block.ext} status={block.status} ctx={ctx} />;
+    ? <ImageOutputCard fileId={block.fileId} filePath={block.filePath} label={block.label} ext={block.ext} status={block.status} ctx={ctx} />
+    : <FileOutputCard fileId={block.fileId} filePath={block.filePath} label={block.label} ext={block.ext} status={block.status} ctx={ctx} />;
 });
 
 // COMPAT(create_artifact, remove no earlier than v0.133):

@@ -6,6 +6,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantMessage } from '../../components/chat/AssistantMessage';
 import { UserMessage } from '../../components/chat/UserMessage';
+import { useStore } from '../../stores';
 
 vi.mock('../../hooks/use-hana-fetch', () => ({
   hanaFetch: vi.fn(async () => new Response('{}', { status: 200 })),
@@ -35,6 +36,11 @@ describe('expired session file presentation', () => {
       configurable: true,
       value: { writeText: vi.fn(async () => undefined) },
     });
+    useStore.setState({
+      activeServerConnection: null,
+      sessionRegistryFilesByPath: {},
+      chatSessions: {},
+    } as any);
   });
 
   afterEach(() => {
@@ -137,5 +143,77 @@ describe('expired session file presentation', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多文件操作 demo.pdf' }));
     fireEvent.click(screen.getByRole('menuitem', { name: '复制文件路径' }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/cache/demo.pdf');
+  });
+
+  it('renders assistant image previews through resource content URL when desktop file URL is unavailable', () => {
+    delete (window as any).platform;
+    useStore.setState({
+      activeServerConnection: {
+        kind: 'custom_remote',
+        serverId: 'server_remote',
+        userId: 'user_remote',
+        spaceId: 'space_remote',
+        label: 'Remote Hana',
+        baseUrl: 'https://hana.example',
+        wsUrl: 'wss://hana.example',
+        token: 'remote token',
+        authState: 'paired',
+        trustState: 'tunnel',
+        credentialKind: 'device_credential',
+        platformAccountId: null,
+        officialServiceKind: null,
+        capabilities: ['resources'],
+      },
+      sessionRegistryFilesByPath: {
+        '/sessions/main.jsonl': [{
+          fileId: 'sf_img',
+          filePath: '/remote/cache/img.png',
+          label: 'img.png',
+          ext: 'png',
+          resource: {
+            schemaVersion: 1,
+            resourceId: 'res_sf_img',
+            name: 'spaces/space_remote/resources/res_sf_img',
+            spaceId: 'space_remote',
+            type: 'file',
+            source: 'session_file',
+            fileId: 'sf_img',
+            lifecycle: { status: 'available', missingAt: null },
+            storage: { provider: 'session_file', localOnly: true },
+            links: {
+              self: '/api/resources/res_sf_img',
+              content: '/api/resources/res_sf_img/content',
+            },
+          },
+        }],
+      },
+    } as any);
+
+    render(
+      <AssistantMessage
+        showAvatar={false}
+        sessionPath="/sessions/main.jsonl"
+        readOnly
+        message={{
+          id: 'a-img',
+          role: 'assistant',
+          blocks: [
+            {
+              type: 'file',
+              fileId: 'sf_img',
+              filePath: '/remote/cache/img.png',
+              label: 'img.png',
+              ext: 'png',
+              status: 'available',
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'img.png' })).toHaveAttribute(
+      'src',
+      'https://hana.example/api/resources/res_sf_img/content?token=remote%20token',
+    );
   });
 });
