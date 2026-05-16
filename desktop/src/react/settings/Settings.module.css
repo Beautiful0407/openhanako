@@ -1634,6 +1634,79 @@
     grid-column: 1 / -1;
 }
 
+.settings-port-input {
+    width: 7rem;
+}
+
+.access-url-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-sm);
+    width: 100%;
+}
+
+.access-qr {
+    width: 7.5rem;
+    height: 7.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card, 10px);
+    background: var(--bg-card);
+    padding: 0.35rem;
+}
+
+.access-device-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+}
+
+.access-device-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+}
+
+.access-device-item + .access-device-item {
+    border-top: 1px solid var(--border);
+}
+
+.access-device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.access-device-name {
+    font-size: 0.86rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.access-device-meta,
+.access-empty {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.access-empty {
+    padding: var(--space-sm) var(--space-md);
+}
+
+.access-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    width: 100%;
+}
+
+.access-field span {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
 /* Text input */
 .settings-input {
     font-family: inherit;
@@ -2826,6 +2899,30 @@
     background: var(--accent);
     color: white;
     transform: translateY(-1px);
+}
+
+.settings-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.settings-btn-secondary {
+    padding: 0.3rem var(--space-sm);
+    font-family: inherit;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card, 10px);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+    white-space: nowrap;
+}
+
+.settings-btn-secondary:hover {
+    color: var(--accent);
+    border-color: var(--accent);
 }
 
 .settings-btn-primary.hidden {

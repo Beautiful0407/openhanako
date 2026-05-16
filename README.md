@@ -127,7 +127,7 @@ Server 以独立 Node.js 进程运行（由 Electron spawn 或独立启动），
 | macOS (Intel) | 已支持 |
 | Windows | Beta |
 | Linux | 已支持（AppImage / deb） |
-| 移动端 (PWA) | 计划中 |
+| 移动端 (PWA) | v0：同一 Hana server 的手机会话与工作台访问 |
 
 ## 开发
 

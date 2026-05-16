@@ -365,6 +365,29 @@ describe('ws-message-handler background chat stream routing', () => {
     expect(streamBufferManager.handle).toHaveBeenCalledWith(msg);
     expect(dispatchStreamKey).toHaveBeenCalledWith('/session/b.jsonl', msg);
   });
+
+  it('远程端写入的用户消息会按 sessionPath 同步到桌面端后台会话缓存', () => {
+    handleServerMessage({
+      type: 'session_user_message',
+      sessionPath: '/session/b.jsonl',
+      message: {
+        id: 'mobile-u1',
+        text: '手机端发来的消息',
+        timestamp: '2026-05-16T00:00:00.000Z',
+      },
+    });
+
+    const items = useStore.getState().chatSessions['/session/b.jsonl']?.items || [];
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      type: 'message',
+      data: {
+        id: 'mobile-u1',
+        role: 'user',
+        text: '手机端发来的消息',
+      },
+    });
+  });
 });
 
 describe('ws-message-handler compaction lifecycle', () => {

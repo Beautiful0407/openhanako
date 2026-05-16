@@ -1,0 +1,339 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { hanaFetch, hanaUrl } from '../api';
+import { t } from '../helpers';
+import { useSettingsStore } from '../store';
+import { Toggle } from '../widgets/Toggle';
+import { SettingsSection } from '../components/SettingsSection';
+import { SettingsRow } from '../components/SettingsRow';
+import styles from '../Settings.module.css';
+
+type AccessMode = 'loopback' | 'lan';
+
+interface AccessSummary {
+  network: {
+    mode: AccessMode;
+    listenHost: string;
+    configuredPort: number;
+    actualPort: number;
+    runtimeMode: AccessMode;
+    runtimeHost: string;
+    restartRequired: boolean;
+    lanAddresses: string[];
+    localMobileUrl: string;
+    lanMobileUrl: string | null;
+  };
+  account: {
+    userId: string;
+    username: string;
+    displayName: string;
+    passwordSet: boolean;
+  };
+  devices: Array<{
+    deviceId: string;
+    displayName: string;
+    deviceKind?: string;
+    status: string;
+    trustState?: string;
+    lastSeenAt?: string | null;
+  }>;
+  credentials: Array<{
+    credentialId: string;
+    deviceId: string;
+    status: string;
+    scopes: string[];
+    createdAt?: string | null;
+    lastUsedAt?: string | null;
+  }>;
+}
+
+const DEFAULT_SCOPES = ['chat', 'files.read', 'files.write'];
+
+export function AccessTab() {
+  const showToast = useSettingsStore(s => s.showToast);
+  const [summary, setSummary] = useState<AccessSummary | null>(null);
+  const [mode, setMode] = useState<AccessMode>('loopback');
+  const [port, setPort] = useState('14500');
+  const [mobileKey, setMobileKey] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [savingNetwork, setSavingNetwork] = useState(false);
+  const [accountDraft, setAccountDraft] = useState({ username: '', displayName: '' });
+  const [passwordDraft, setPasswordDraft] = useState('');
+
+  const loadSummary = useCallback(async () => {
+    const res = await hanaFetch('/api/access/summary');
+    const data = await res.json();
+    setSummary(data);
+    setMode(data.network.mode);
+    setPort(String(data.network.configuredPort));
+    setAccountDraft({
+      username: data.account.username || '',
+      displayName: data.account.displayName || '',
+    });
+  }, []);
+
+  useEffect(() => {
+    loadSummary().catch((err) => {
+      showToast(`${t('settings.access.loadFailed')}: ${err.message}`, 'error');
+    });
+  }, [loadSummary, showToast]);
+
+  const mobileUrl = useMemo(() => {
+    if (!summary) return '';
+    return mode === 'lan'
+      ? (summary.network.lanMobileUrl || summary.network.localMobileUrl)
+      : summary.network.localMobileUrl;
+  }, [mode, summary]);
+
+  const qrUrl = useMemo(() => hanaUrl('/api/access/mobile-qr.svg'), []);
+
+  const copyText = useCallback(async (value: string) => {
+    if (!value) return;
+    await navigator.clipboard?.writeText(value);
+    showToast(t('settings.access.copied'), 'success');
+  }, [showToast]);
+
+  const saveNetwork = useCallback(async () => {
+    const listenPort = Number(port);
+    if (!Number.isInteger(listenPort)) {
+      showToast(t('settings.access.invalidPort'), 'error');
+      return;
+    }
+    setSavingNetwork(true);
+    try {
+      const res = await hanaFetch('/api/access/network', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, listenPort }),
+      });
+      const data = await res.json();
+      setSummary(prev => prev ? { ...prev, network: data.network } : prev);
+      showToast(t('settings.access.saved'), 'success');
+    } catch (err: any) {
+      showToast(`${t('settings.saveFailed')}: ${err.message}`, 'error');
+    } finally {
+      setSavingNetwork(false);
+    }
+  }, [mode, port, showToast]);
+
+  const generateMobileKey = useCallback(async () => {
+    setGenerating(true);
+    try {
+      const res = await hanaFetch('/api/access/mobile-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Mobile PWA',
+          scopes: DEFAULT_SCOPES,
+        }),
+      });
+      const data = await res.json();
+      setMobileKey(data.secret || '');
+      await loadSummary();
+      showToast(t('settings.access.mobileKeyCreated'), 'success');
+    } catch (err: any) {
+      showToast(`${t('settings.access.mobileKeyFailed')}: ${err.message}`, 'error');
+    } finally {
+      setGenerating(false);
+    }
+  }, [loadSummary, showToast]);
+
+  const saveAccount = useCallback(async () => {
+    try {
+      const res = await hanaFetch('/api/access/account/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountDraft),
+      });
+      const data = await res.json();
+      setSummary(prev => prev ? { ...prev, account: data.account } : prev);
+      showToast(t('settings.access.accountSaved'), 'success');
+    } catch (err: any) {
+      showToast(`${t('settings.saveFailed')}: ${err.message}`, 'error');
+    }
+  }, [accountDraft, showToast]);
+
+  const savePassword = useCallback(async () => {
+    try {
+      const res = await hanaFetch('/api/access/account/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordDraft }),
+      });
+      const data = await res.json();
+      setSummary(prev => prev ? { ...prev, account: data.account } : prev);
+      setPasswordDraft('');
+      showToast(t('settings.access.passwordSaved'), 'success');
+    } catch (err: any) {
+      showToast(`${t('settings.saveFailed')}: ${err.message}`, 'error');
+    }
+  }, [passwordDraft, showToast]);
+
+  const revokeDevice = useCallback(async (deviceId: string) => {
+    try {
+      await hanaFetch(`/api/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST' });
+      await loadSummary();
+      showToast(t('settings.access.deviceRevoked'), 'success');
+    } catch (err: any) {
+      showToast(`${t('settings.access.deviceRevokeFailed')}: ${err.message}`, 'error');
+    }
+  }, [loadSummary, showToast]);
+
+  const activeDevices = (summary?.devices || []).filter(device => device.status === 'active');
+
+  return (
+    <div className={`${styles['settings-tab-content']} ${styles.active}`} data-tab="access">
+      <SettingsSection title={t('settings.access.mobileAccess')}>
+        <SettingsRow
+          label={t('settings.access.lanToggle')}
+          hint={t('settings.access.lanHint')}
+          control={<Toggle label={t('settings.access.lanToggle')} on={mode === 'lan'} onChange={(on) => setMode(on ? 'lan' : 'loopback')} />}
+        />
+        <SettingsRow
+          label={t('settings.access.port')}
+          hint={t('settings.access.portHint')}
+          control={
+            <input
+              className={`${styles['settings-input']} ${styles['settings-port-input']}`}
+              value={port}
+              inputMode="numeric"
+              onChange={(event) => setPort(event.target.value)}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.access.mobileUrl')}
+          hint={mode === 'lan' ? t('settings.access.mobileUrlLanHint') : t('settings.access.mobileUrlLocalHint')}
+          layout="stacked"
+          control={
+            <div className={styles['access-url-row']}>
+              <input className={styles['settings-input']} value={mobileUrl} readOnly />
+              <button className={styles['settings-btn-secondary']} type="button" onClick={() => copyText(mobileUrl)}>
+                {t('settings.access.copy')}
+              </button>
+            </div>
+          }
+        />
+        {mode === 'lan' && (
+          <SettingsRow
+            label={t('settings.access.qrCode')}
+            hint={t('settings.access.qrCodeHint')}
+            control={<img className={styles['access-qr']} src={qrUrl} alt={t('settings.access.qrCode')} />}
+          />
+        )}
+        {summary?.network.restartRequired && (
+          <SettingsSection.Warning>{t('settings.access.restartRequired')}</SettingsSection.Warning>
+        )}
+        <SettingsSection.Footer>
+          <button className={styles['settings-btn-primary']} type="button" onClick={saveNetwork} disabled={savingNetwork}>
+            {t('settings.access.saveNetwork')}
+          </button>
+        </SettingsSection.Footer>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.access.mobileKeys')}>
+        <SettingsRow
+          label={t('settings.access.generateMobileKey')}
+          hint={t('settings.access.mobileKeyHint')}
+          control={
+            <button className={styles['settings-btn-primary']} type="button" onClick={generateMobileKey} disabled={generating}>
+              {t('settings.access.generateMobileKey')}
+            </button>
+          }
+        />
+        {mobileKey && (
+          <SettingsRow
+            label={t('settings.access.mobileKey')}
+            hint={t('settings.access.mobileKeyOnce')}
+            layout="stacked"
+            control={
+              <div className={styles['access-url-row']}>
+                <input className={styles['settings-input']} value={mobileKey} readOnly />
+                <button className={styles['settings-btn-secondary']} type="button" onClick={() => copyText(mobileKey)}>
+                  {t('settings.access.copy')}
+                </button>
+              </div>
+            }
+          />
+        )}
+        <div className={styles['access-device-list']}>
+          {activeDevices.length === 0 ? (
+            <div className={styles['access-empty']}>{t('settings.access.noDevices')}</div>
+          ) : activeDevices.map(device => (
+            <div className={styles['access-device-item']} key={device.deviceId}>
+              <div className={styles['access-device-info']}>
+                <span className={styles['access-device-name']}>{device.displayName}</span>
+                <span className={styles['access-device-meta']}>{device.deviceKind || 'device'} · {device.trustState || 'lan'}</span>
+              </div>
+              <button className={styles['settings-btn-secondary']} type="button" onClick={() => revokeDevice(device.deviceId)}>
+                {t('settings.access.revoke')}
+              </button>
+            </div>
+          ))}
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.access.localAccount')}>
+        <SettingsRow
+          label={t('settings.access.username')}
+          layout="stacked"
+          control={
+            <label className={styles['access-field']}>
+              <span>{t('settings.access.username')}</span>
+              <input
+                aria-label={t('settings.access.username')}
+                className={styles['settings-input']}
+                value={accountDraft.username}
+                onChange={(event) => setAccountDraft(prev => ({ ...prev, username: event.target.value }))}
+              />
+            </label>
+          }
+        />
+        <SettingsRow
+          label={t('settings.access.displayName')}
+          layout="stacked"
+          control={
+            <label className={styles['access-field']}>
+              <span>{t('settings.access.displayName')}</span>
+              <input
+                aria-label={t('settings.access.displayName')}
+                className={styles['settings-input']}
+                value={accountDraft.displayName}
+                onChange={(event) => setAccountDraft(prev => ({ ...prev, displayName: event.target.value }))}
+              />
+            </label>
+          }
+        />
+        <SettingsSection.Footer>
+          <button className={styles['settings-btn-primary']} type="button" onClick={saveAccount}>
+            {t('settings.access.saveAccount')}
+          </button>
+        </SettingsSection.Footer>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.access.password')}>
+        <SettingsRow
+          label={summary?.account.passwordSet ? t('settings.access.passwordSet') : t('settings.access.passwordNotSet')}
+          hint={t('settings.access.passwordHint')}
+          layout="stacked"
+          control={
+            <label className={styles['access-field']}>
+              <span>{t('settings.access.newPassword')}</span>
+              <input
+                aria-label={t('settings.access.newPassword')}
+                className={styles['settings-input']}
+                type="password"
+                value={passwordDraft}
+                onChange={(event) => setPasswordDraft(event.target.value)}
+              />
+            </label>
+          }
+        />
+        <SettingsSection.Footer>
+          <button className={styles['settings-btn-primary']} type="button" onClick={savePassword} disabled={!passwordDraft}>
+            {t('settings.access.savePassword')}
+          </button>
+        </SettingsSection.Footer>
+      </SettingsSection>
+    </div>
+  );
+}

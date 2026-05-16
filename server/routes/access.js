@@ -1,0 +1,285 @@
+import os from "os";
+import QRCode from "qrcode";
+import { Hono } from "hono";
+import { createDeviceCredential, loadDeviceAccessRegistries } from "../../core/device-registry.js";
+import {
+  loadServerNetworkConfig,
+  saveServerNetworkConfig,
+} from "../../core/server-network-config.js";
+import {
+  clearLocalAccountPassword,
+  getLocalAccountSummary,
+  setLocalAccountPassword,
+  updateLocalAccountProfile,
+} from "../../core/local-user-account.js";
+import { readAuthPrincipal } from "../http/capability-guard.js";
+import { isLocalOwnerPrincipal } from "../http/route-security.js";
+import { recordSecurityAuditEvent } from "../http/security-audit.js";
+import { safeJson } from "../hono-helpers.js";
+
+const DEFAULT_MOBILE_SCOPES = Object.freeze(["chat", "files.read", "files.write"]);
+const ALLOWED_MOBILE_SCOPES = new Set(["chat", "resources.read", "files.read", "files.write"]);
+
+export function createAccessRoute({
+  engine,
+  runtimeState = {},
+  listLanAddresses = getLanAddresses,
+  now = () => new Date().toISOString(),
+} = {}) {
+  if (!engine?.hanakoHome) throw new Error("engine.hanakoHome required");
+  const route = new Hono();
+
+  route.get("/access/summary", (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    return c.json(createAccessSummary(engine, runtimeState, listLanAddresses));
+  });
+
+  route.get("/access/mobile-qr.svg", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    const summary = createAccessSummary(engine, runtimeState, listLanAddresses);
+    const url = summary.network.lanMobileUrl || summary.network.localMobileUrl;
+    const svg = await QRCode.toString(url, {
+      type: "svg",
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+    c.header("Content-Type", "image/svg+xml; charset=utf-8");
+    c.header("Cache-Control", "no-store");
+    return c.body(svg);
+  });
+
+  route.put("/access/network", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    try {
+      const body = await safeJson(c);
+      const existing = loadServerNetworkConfig(engine.hanakoHome);
+      const mode = normalizeNetworkMode(body?.mode);
+      const listenPort = normalizePort(body?.listenPort ?? body?.configuredPort ?? existing.listenPort);
+      const listenHost = mode === "lan" ? "0.0.0.0" : "127.0.0.1";
+      const network = saveServerNetworkConfig(engine.hanakoHome, {
+        ...existing,
+        mode,
+        listenHost,
+        listenPort,
+      }, { now: now() });
+      recordSecurityAuditEvent(c, engine, {
+        action: "access.network.update",
+        target: "server-network",
+        metadata: { mode: network.mode, listenPort: network.listenPort },
+      });
+      return c.json({
+        ok: true,
+        network: createNetworkSummary(network, runtimeState, listLanAddresses),
+      });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  route.post("/access/mobile-credentials", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    try {
+      const body = await safeJson(c);
+      const runtimeContext = resolveRuntimeContext(c, engine);
+      const scopes = normalizeScopes(body?.scopes);
+      const issued = createDeviceCredential(engine.hanakoHome, {
+        serverNodeId: runtimeContext.serverNodeId,
+        userId: runtimeContext.userId,
+        studioIds: [runtimeContext.studioId],
+        displayName: normalizeDisplayName(body?.displayName, "Mobile PWA"),
+        deviceKind: "mobile",
+        trustState: "lan",
+        scopes,
+        expiresAt: body?.expiresAt ?? null,
+        now: now(),
+      });
+      const summary = createAccessSummary(engine, runtimeState, listLanAddresses);
+      recordSecurityAuditEvent(c, engine, {
+        action: "access.mobile_credential.issue",
+        target: issued.device.deviceId,
+        secretFields: ["secret"],
+        metadata: {
+          credentialId: issued.credential.credentialId,
+          scopes: issued.credential.scopes,
+        },
+      });
+      return c.json({
+        ok: true,
+        secret: issued.secret,
+        accessUrl: summary.network.lanMobileUrl || summary.network.localMobileUrl,
+        device: sanitizeDevice(issued.device),
+        credential: sanitizeCredential(issued.credential),
+      });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  route.put("/access/account/profile", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    try {
+      const body = await safeJson(c);
+      const account = updateLocalAccountProfile(engine.hanakoHome, {
+        username: body?.username,
+        displayName: body?.displayName,
+        now: now(),
+      });
+      recordSecurityAuditEvent(c, engine, {
+        action: "access.account.profile.update",
+        target: account.userId,
+      });
+      return c.json({ ok: true, account });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  route.put("/access/account/password", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    try {
+      const body = await safeJson(c);
+      const account = setLocalAccountPassword(engine.hanakoHome, {
+        password: body?.password,
+        now: now(),
+      });
+      recordSecurityAuditEvent(c, engine, {
+        action: "access.account.password.update",
+        target: account.userId,
+        secretFields: ["password"],
+      });
+      return c.json({ ok: true, account });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  route.delete("/access/account/password", async (c) => {
+    const denied = requireLocalOwner(c);
+    if (denied) return denied;
+    try {
+      const account = clearLocalAccountPassword(engine.hanakoHome, { now: now() });
+      recordSecurityAuditEvent(c, engine, {
+        action: "access.account.password.clear",
+        target: account.userId,
+      });
+      return c.json({ ok: true, account });
+    } catch (err) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  return route;
+}
+
+function createAccessSummary(engine, runtimeState, listLanAddresses) {
+  const network = loadServerNetworkConfig(engine.hanakoHome);
+  const registries = loadDeviceAccessRegistries(engine.hanakoHome);
+  return {
+    network: createNetworkSummary(network, runtimeState, listLanAddresses),
+    account: getLocalAccountSummary(engine.hanakoHome),
+    devices: registries.devices.devices.map(sanitizeDevice),
+    credentials: registries.credentials.credentials.map(sanitizeCredential),
+  };
+}
+
+function createNetworkSummary(network, runtimeState, listLanAddresses) {
+  const actualPort = Number.isInteger(runtimeState?.actualPort)
+    ? runtimeState.actualPort
+    : network.listenPort;
+  const runtimeMode = runtimeState?.mode || network.mode;
+  const runtimeHost = runtimeState?.listenHost || network.listenHost;
+  const lanAddresses = listLanAddresses();
+  const localMobileUrl = buildMobileUrl("127.0.0.1", actualPort);
+  const lanMobileUrl = network.mode === "lan" && lanAddresses.length > 0
+    ? buildMobileUrl(lanAddresses[0], actualPort)
+    : null;
+  return {
+    mode: network.mode,
+    listenHost: network.listenHost,
+    configuredPort: network.listenPort,
+    actualPort,
+    runtimeMode,
+    runtimeHost,
+    restartRequired: runtimeMode !== network.mode
+      || runtimeHost !== network.listenHost
+      || actualPort !== network.listenPort,
+    lanAddresses,
+    localMobileUrl,
+    lanMobileUrl,
+  };
+}
+
+function buildMobileUrl(host, port) {
+  return `http://${host}:${port}/mobile/`;
+}
+
+function requireLocalOwner(c) {
+  if (isLocalOwnerPrincipal(readAuthPrincipal(c))) return null;
+  return c.json({ error: "local_only_route" }, 403);
+}
+
+function resolveRuntimeContext(c, engine) {
+  const principal = readAuthPrincipal(c);
+  const runtimeContext = typeof engine.getRuntimeContext === "function" ? engine.getRuntimeContext() : {};
+  const serverNodeId = principal?.serverNodeId || runtimeContext?.serverNodeId || runtimeContext?.serverId;
+  const userId = principal?.userId || runtimeContext?.userId;
+  const studioId = principal?.studioId || runtimeContext?.studioId;
+  if (!serverNodeId) throw new Error("serverNodeId unavailable");
+  if (!userId) throw new Error("userId unavailable");
+  if (!studioId) throw new Error("studioId unavailable");
+  return { serverNodeId, userId, studioId };
+}
+
+function normalizeNetworkMode(value) {
+  if (value === "loopback" || value === "lan") return value;
+  throw new Error("mode must be loopback or lan");
+}
+
+function normalizePort(value) {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error("listenPort must be between 1024 and 65535");
+  }
+  return port;
+}
+
+function normalizeDisplayName(value, fallback) {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return value.trim().slice(0, 80);
+}
+
+function normalizeScopes(value) {
+  const raw = Array.isArray(value) && value.length > 0 ? value : DEFAULT_MOBILE_SCOPES;
+  const scopes = raw
+    .filter((scope) => typeof scope === "string" && ALLOWED_MOBILE_SCOPES.has(scope));
+  if (scopes.length === 0) throw new Error("at least one supported scope is required");
+  return [...new Set(scopes)];
+}
+
+function sanitizeDevice(device) {
+  const { publicKey, ...safe } = device || {};
+  return publicKey ? { ...safe, publicKey } : safe;
+}
+
+function sanitizeCredential(credential) {
+  const { secretHash, secretSalt, ...safe } = credential || {};
+  return safe;
+}
+
+function getLanAddresses() {
+  const out = [];
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries || []) {
+      if (entry.family !== "IPv4" || entry.internal) continue;
+      out.push(entry.address);
+    }
+  }
+  return out;
+}

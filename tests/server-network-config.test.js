@@ -26,10 +26,32 @@ describe("server network config", () => {
       schemaVersion: 1,
       mode: "loopback",
       listenHost: "127.0.0.1",
+      listenPort: 14500,
     });
     expect(resolveServerListenOptions(tmpDir)).toMatchObject({
       mode: "loopback",
       host: "127.0.0.1",
+      port: 14500,
+    });
+  });
+
+  it("upgrades legacy configs without a port to the stable mobile port", async () => {
+    tmpDir = makeTmpDir();
+    fs.writeFileSync(path.join(tmpDir, "server-network.json"), JSON.stringify({
+      schemaVersion: 1,
+      mode: "loopback",
+      listenHost: "127.0.0.1",
+      customRemote: { enabled: false, baseUrl: null, wsUrl: null },
+      createdAt: "2026-05-16T00:00:00.000Z",
+      updatedAt: "2026-05-16T00:00:00.000Z",
+    }, null, 2), "utf-8");
+    const { loadServerNetworkConfig } = await import("../core/server-network-config.js");
+
+    expect(loadServerNetworkConfig(tmpDir)).toMatchObject({
+      schemaVersion: 1,
+      mode: "loopback",
+      listenHost: "127.0.0.1",
+      listenPort: 14500,
     });
   });
 
@@ -44,6 +66,7 @@ describe("server network config", () => {
       schemaVersion: 1,
       mode: "lan",
       listenHost: "0.0.0.0",
+      listenPort: 14510,
       customRemote: { enabled: false, baseUrl: null, wsUrl: null },
       createdAt: "2026-05-16T00:00:00.000Z",
       updatedAt: "2026-05-16T00:00:00.000Z",
@@ -52,6 +75,7 @@ describe("server network config", () => {
     expect(resolveServerListenOptions(tmpDir)).toMatchObject({
       mode: "lan",
       host: "0.0.0.0",
+      port: 14510,
     });
   });
 
@@ -80,5 +104,11 @@ describe("server network config", () => {
       mode: "lan",
       listenHost: "",
     })).toThrow("listenHost required");
+    expect(() => saveServerNetworkConfig(tmpDir, {
+      schemaVersion: 1,
+      mode: "lan",
+      listenHost: "0.0.0.0",
+      listenPort: 80,
+    })).toThrow("listenPort must be between 1024 and 65535");
   });
 });

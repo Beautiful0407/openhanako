@@ -4,8 +4,11 @@ import path from "path";
 export const SERVER_NETWORK_FILE = "server-network.json";
 
 const SCHEMA_VERSION = 1;
+export const DEFAULT_SERVER_LISTEN_PORT = 14500;
 const MODES = ["loopback", "lan", "custom_remote"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const MIN_USER_PORT = 1024;
+const MAX_PORT = 65535;
 
 export function ensureServerNetworkConfig(hanakoHome, { now = new Date().toISOString() } = {}) {
   const filePath = path.join(hanakoHome, SERVER_NETWORK_FILE);
@@ -41,6 +44,7 @@ export function resolveServerListenOptions(hanakoHome) {
   return {
     mode: config.mode,
     host: config.listenHost,
+    port: config.listenPort,
     config,
   };
 }
@@ -53,10 +57,12 @@ export function validateServerNetworkConfig(value, label = SERVER_NETWORK_FILE) 
   if (value.mode === "loopback" && !isLoopbackHost(value.listenHost)) {
     throw new Error(`invalid ${label}: loopback mode must listen on a loopback host`);
   }
+  const listenPort = normalizeListenPort(value.listenPort, label);
   return {
     schemaVersion: SCHEMA_VERSION,
     mode: value.mode,
     listenHost: value.listenHost.trim(),
+    listenPort,
     customRemote: normalizeCustomRemote(value.customRemote),
     createdAt: value.createdAt || null,
     updatedAt: value.updatedAt || null,
@@ -68,6 +74,7 @@ function createDefaultServerNetworkConfig(now) {
     schemaVersion: SCHEMA_VERSION,
     mode: "loopback",
     listenHost: "127.0.0.1",
+    listenPort: DEFAULT_SERVER_LISTEN_PORT,
     customRemote: { enabled: false, baseUrl: null, wsUrl: null },
     createdAt: now,
     updatedAt: now,
@@ -88,6 +95,16 @@ function normalizeCustomRemote(value) {
 
 function isLoopbackHost(host) {
   return LOOPBACK_HOSTS.has(host.trim().toLowerCase());
+}
+
+function normalizeListenPort(value, label) {
+  const port = value === undefined || value === null || value === ""
+    ? DEFAULT_SERVER_LISTEN_PORT
+    : Number(value);
+  if (!Number.isInteger(port) || port < MIN_USER_PORT || port > MAX_PORT) {
+    throw new Error(`invalid ${label}: listenPort must be between ${MIN_USER_PORT} and ${MAX_PORT}`);
+  }
+  return port;
 }
 
 function readJsonRequired(filePath, label) {

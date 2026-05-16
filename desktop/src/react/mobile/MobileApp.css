@@ -55,9 +55,31 @@ textarea {
   line-height: 1.7;
 }
 
+.mobile-login-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mobile-login-modes button {
+  min-height: 38px;
+  background: #fffdf8;
+}
+
+.mobile-login-modes button.active {
+  background: #3d3328;
+  color: #fffaf1;
+}
+
 .mobile-login label {
   display: grid;
   gap: 8px;
+}
+
+.mobile-login-hint {
+  color: #786d5f;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .mobile-login input,

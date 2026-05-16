@@ -60,6 +60,7 @@ import { createResourcesRoute } from "./routes/resources.js";
 import { createWebAuthRoute } from "./routes/web-auth.js";
 import { createMobileWorkbenchRoute } from "./routes/mobile-workbench.js";
 import { createMobileStaticRoute } from "./routes/mobile-static.js";
+import { createAccessRoute } from "./routes/access.js";
 import { configureProcessPiSdkEnv, ensureHanaPiSdkDirs, resolveHanakoHome } from "../shared/hana-runtime-paths.js";
 // internal-browser WS is handled directly via raw ws.WebSocketServer in the
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
@@ -162,6 +163,11 @@ const serverAuthService = createServerAuthService({
   runtimeContext: () => engine.getRuntimeContext(),
 });
 const serverNetwork = resolveServerListenOptions(hanakoHome);
+const serverRuntimeState = {
+  mode: serverNetwork.mode,
+  listenHost: serverNetwork.host,
+  actualPort: null,
+};
 
 // ── 创建 Hono 实例 ──
 const app = new Hono();
@@ -422,6 +428,11 @@ app.route("/api", createWebAuthRoute({
   hanakoHome: engine.hanakoHome,
   authService: serverAuthService,
   getConnectionKind: (c) => c.get("transportConnectionKind"),
+  getRuntimeContext: () => engine.getRuntimeContext(),
+}));
+app.route("/api", createAccessRoute({
+  engine,
+  runtimeState: serverRuntimeState,
 }));
 app.route("/api", createSessionsRoute(engine));
 app.route("/api", createModelsRoute(engine));
@@ -573,7 +584,8 @@ app.post("/api/shutdown", async (c) => {
 });
 
 // ── 启动服务器 ──
-const port = parseInt(process.env.HANA_PORT) || 0; // 0 = OS 分配
+const envPort = Number.parseInt(process.env.HANA_PORT || "", 10);
+const port = Number.isInteger(envPort) && envPort >= 0 ? envPort : serverNetwork.port;
 const host = serverNetwork.host;
 
 let server;
@@ -582,9 +594,25 @@ try {
 
   // @hono/node-server 的 serve() 内部调用 server.listen()，
   // port=0 时需等 listening 事件才能拿到实际端口
-  await new Promise((resolve) => {
-    if (server.listening) resolve();
-    else server.on("listening", resolve);
+  await new Promise((resolve, reject) => {
+    if (server.listening) {
+      resolve();
+      return;
+    }
+    const cleanup = () => {
+      server.off("listening", onListening);
+      server.off("error", onError);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    server.once("listening", onListening);
+    server.once("error", onError);
   });
 
   // ── Internal browser control WS (raw ws) ──
@@ -691,6 +719,7 @@ try {
 
   const address = server.address();
   const actualPort = address.port;
+  serverRuntimeState.actualPort = actualPort;
 
   console.log(`[server] Hanako Server 运行在 http://${host}:${actualPort}`);
   dlog.log("server", `listening on :${actualPort}`);
@@ -698,7 +727,14 @@ try {
   // 写 server-info 文件，供 Electron 检测复用或外部工具查询
   const serverInfoPath = path.join(hanakoHome, "server-info.json");
   try {
-    fs.writeFileSync(serverInfoPath, JSON.stringify({ pid: process.pid, port: actualPort, token: SERVER_TOKEN, version: appVersion }));
+    fs.writeFileSync(serverInfoPath, JSON.stringify({
+      pid: process.pid,
+      port: actualPort,
+      host,
+      networkMode: serverNetwork.mode,
+      token: SERVER_TOKEN,
+      version: appVersion,
+    }));
   } catch (e) {
     console.error("[server] 写入 server-info.json 失败:", e.message);
   }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type AuthState = 'checking' | 'login' | 'ready';
 type Panel = 'chat' | 'files';
+type LoginMode = 'device' | 'password';
 
 interface Principal {
   scopes?: string[];
@@ -51,7 +52,10 @@ export function MobileApp(): React.ReactElement {
   const [authState, setAuthState] = useState<AuthState>('checking');
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [identity, setIdentity] = useState<ServerIdentity | null>(null);
+  const [loginMode, setLoginMode] = useState<LoginMode>('device');
   const [loginSecret, setLoginSecret] = useState('');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [currentSessionPath, setCurrentSessionPath] = useState<string | null>(null);
@@ -114,7 +118,10 @@ export function MobileApp(): React.ReactElement {
       const sessionPath = typeof msg.sessionPath === 'string' ? msg.sessionPath : null;
       if (sessionPath && sessionPath !== currentSessionPathRef.current) return;
 
-      if (msg.type === 'text_delta' && typeof msg.delta === 'string') {
+      if (msg.type === 'session_user_message' && msg.message && typeof msg.message === 'object') {
+        const message = toMobileUserMessage(msg.message as Record<string, unknown>);
+        setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+      } else if (msg.type === 'text_delta' && typeof msg.delta === 'string') {
         setStreamingText((text) => text + msg.delta);
       } else if (msg.type === 'turn_end') {
         setStreamingText('');
@@ -168,11 +175,15 @@ export function MobileApp(): React.ReactElement {
     event.preventDefault();
     setLoginError(null);
     try {
+      const body = loginMode === 'device'
+        ? { credential: loginSecret.trim() }
+        : { username: loginUsername.trim(), password: loginPassword };
       await apiJson('/api/web-auth/login', {
         method: 'POST',
-        body: JSON.stringify({ credential: loginSecret.trim() }),
+        body: JSON.stringify(body),
       });
       setLoginSecret('');
+      setLoginPassword('');
       await bootstrap();
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : '登录失败');
@@ -219,10 +230,6 @@ export function MobileApp(): React.ReactElement {
     }
     setDraft('');
     setBusy(true);
-    setMessages((items) => [
-      ...items,
-      { id: `local-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() },
-    ]);
   };
 
   const sendWsPrompt = (sessionPath: string | null, text: string) => {
@@ -283,6 +290,9 @@ export function MobileApp(): React.ReactElement {
   };
 
   const pathLabel = useMemo(() => subdir || '工作台', [subdir]);
+  const loginDisabled = loginMode === 'device'
+    ? !loginSecret.trim()
+    : !loginUsername.trim() || !loginPassword;
 
   if (authState === 'checking') {
     return <div className="mobile-loading">正在连接 Hana...</div>;
@@ -294,18 +304,70 @@ export function MobileApp(): React.ReactElement {
         <form className="mobile-login-panel" onSubmit={login}>
           <img src="./assets/Hanako.png" alt="" className="mobile-login-avatar" />
           <h1>手机访问 Hana</h1>
-          <p>输入桌面端为这台设备生成的访问密钥。登录后会改用 HttpOnly 会话 cookie。</p>
-          <label>
-            访问密钥
-            <input
-              value={loginSecret}
-              onChange={(event) => setLoginSecret(event.target.value)}
-              autoComplete="one-time-code"
-              spellCheck={false}
-            />
-          </label>
+          <p>{loginMode === 'device'
+            ? '输入桌面端为这台设备生成的访问密钥。登录后会改用 HttpOnly 会话 cookie。'
+            : '使用桌面端设置的本地账号登录。局域网明文 HTTP 会被服务器拒绝，请使用本机、HTTPS 或可信 Tunnel。'}</p>
+          <div className="mobile-login-modes" role="tablist" aria-label="登录方式">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={loginMode === 'device'}
+              className={loginMode === 'device' ? 'active' : ''}
+              onClick={() => {
+                setLoginMode('device');
+                setLoginError(null);
+              }}
+            >
+              访问密钥
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={loginMode === 'password'}
+              className={loginMode === 'password' ? 'active' : ''}
+              onClick={() => {
+                setLoginMode('password');
+                setLoginError(null);
+              }}
+            >
+              用户名密码
+            </button>
+          </div>
+          {loginMode === 'device' ? (
+            <label>
+              访问密钥
+              <input
+                value={loginSecret}
+                onChange={(event) => setLoginSecret(event.target.value)}
+                autoComplete="one-time-code"
+                spellCheck={false}
+              />
+            </label>
+          ) : (
+            <>
+              <label>
+                用户名
+                <input
+                  value={loginUsername}
+                  onChange={(event) => setLoginUsername(event.target.value)}
+                  autoComplete="username"
+                  spellCheck={false}
+                />
+              </label>
+              <label>
+                密码
+                <input
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  type="password"
+                  autoComplete="current-password"
+                />
+              </label>
+              <div className="mobile-login-hint">远程明文链路不接收账号密码，避免把长期凭证暴露在局域网或 Tunnel 中。</div>
+            </>
+          )}
           {loginError && <div className="mobile-error">{loginError}</div>}
-          <button type="submit" disabled={!loginSecret.trim()}>登录</button>
+          <button type="submit" disabled={loginDisabled}>登录</button>
         </form>
       </main>
     );
@@ -489,6 +551,23 @@ function fileIcon(name: string): string {
   if (kind === 'pdf') return 'P';
   if (kind === 'text') return 'T';
   return '·';
+}
+
+function toMobileUserMessage(message: Record<string, unknown>): ChatMessage {
+  const id = typeof message.id === 'string' && message.id ? message.id : `user-${Date.now()}`;
+  const content = typeof message.text === 'string'
+    ? message.text
+    : typeof message.content === 'string'
+    ? message.content
+    : '';
+  return {
+    id,
+    role: 'user',
+    content,
+    timestamp: typeof message.timestamp === 'string' || typeof message.timestamp === 'number'
+      ? message.timestamp
+      : Date.now(),
+  };
 }
 
 function formatBytes(size: number): string {
