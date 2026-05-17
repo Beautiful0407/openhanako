@@ -1363,8 +1363,8 @@
 }
 
 .sessionFooter {
-    /* 和 sessionPanel 的切点对齐：遮挡发生在输入卡片中部，同时在滚到底时额外多留约三行呼吸空间。 */
-    height: calc(var(--chat-scrollbar-bottom-inset) + var(--space-lg) + 8rem);
+    /* 和 sessionPanel 的切点对齐：遮挡发生在输入卡片中部，同时在滚到底时额外留一行左右呼吸空间。 */
+    height: calc(var(--chat-scrollbar-bottom-inset) + var(--space-lg) + 5rem);
     flex-shrink: 0;
 }
 

@@ -119,6 +119,6 @@ describe('InputArea layout', () => {
 
     expect(shellBlock).toMatch(/--chat-scrollbar-bottom-inset:\s*var\(--input-card-bottom-inset,\s*calc\(var\(--input-card-h,\s*0px\) \/ 2\)\)/);
     expect(shellBlock).toMatch(/bottom:\s*calc\(var\(--chat-scrollbar-bottom-inset\) \+ var\(--space-lg\)\)/);
-    expect(footerBlock).toMatch(/height:\s*calc\(var\(--chat-scrollbar-bottom-inset\) \+ var\(--space-lg\) \+ 8rem\)/);
+    expect(footerBlock).toMatch(/height:\s*calc\(var\(--chat-scrollbar-bottom-inset\) \+ var\(--space-lg\) \+ 5rem\)/);
   });
 });
