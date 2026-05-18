@@ -1783,6 +1783,14 @@
     line-height: 1.5;
 }
 
+.settings-control-loading {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
 /* 巡检开关 */
 :global(.hana-toggle-label) {
     font-size: 0.78rem;

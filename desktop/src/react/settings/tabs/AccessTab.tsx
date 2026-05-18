@@ -57,20 +57,26 @@ export function AccessTab() {
   const [port, setPort] = useState('14500');
   const [mobileKey, setMobileKey] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(true);
   const [savingNetwork, setSavingNetwork] = useState(false);
   const [accountDraft, setAccountDraft] = useState({ username: '', displayName: '' });
   const [passwordDraft, setPasswordDraft] = useState('');
 
   const loadSummary = useCallback(async () => {
-    const res = await hanaFetch('/api/access/summary');
-    const data = await res.json();
-    setSummary(data);
-    setMode(data.network.mode);
-    setPort(String(data.network.configuredPort));
-    setAccountDraft({
-      username: data.account.username || '',
-      displayName: data.account.displayName || '',
-    });
+    setLoadingSummary(true);
+    try {
+      const res = await hanaFetch('/api/access/summary');
+      const data = await res.json();
+      setSummary(data);
+      setMode(data.network.mode);
+      setPort(String(data.network.configuredPort));
+      setAccountDraft({
+        username: data.account.username || '',
+        displayName: data.account.displayName || '',
+      });
+    } finally {
+      setLoadingSummary(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -143,10 +149,11 @@ export function AccessTab() {
   }, [mode, port, saveNetworkSettings]);
 
   const handleLanToggle = useCallback((on: boolean) => {
+    if (!summary || loadingSummary || savingNetwork) return;
     const nextMode = on ? 'lan' : 'loopback';
     setMode(nextMode);
     void saveNetworkSettings(nextMode, port);
-  }, [port, saveNetworkSettings]);
+  }, [loadingSummary, port, saveNetworkSettings, savingNetwork, summary]);
 
   const generateMobileKey = useCallback(async () => {
     setGenerating(true);
@@ -239,7 +246,14 @@ export function AccessTab() {
         <SettingsRow
           label={t('settings.access.lanToggle')}
           hint={t('settings.access.lanHint')}
-          control={<Toggle label={t('settings.access.lanToggle')} on={mode === 'lan'} onChange={handleLanToggle} />}
+          control={
+            <Toggle
+              label={t('settings.access.lanToggle')}
+              on={summary ? mode === 'lan' : false}
+              onChange={handleLanToggle}
+              disabled={loadingSummary || savingNetwork || !summary}
+            />
+          }
         />
         <SettingsRow
           label={t('settings.access.port')}
@@ -303,7 +317,7 @@ export function AccessTab() {
           <SettingsSection.Warning>{t('settings.access.restartRequired')}</SettingsSection.Warning>
         )}
         <SettingsSection.Footer>
-          <button className={styles['settings-btn-primary']} type="button" onClick={saveNetwork} disabled={savingNetwork}>
+          <button className={styles['settings-btn-primary']} type="button" onClick={saveNetwork} disabled={loadingSummary || savingNetwork || !summary}>
             {t('settings.access.saveNetwork')}
           </button>
         </SettingsSection.Footer>
