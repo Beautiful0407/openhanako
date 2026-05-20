@@ -65,7 +65,11 @@ async function responseText(response) {
 }
 
 function isJsonRpcResponse(message) {
-  return message && typeof message === "object" && message.jsonrpc === "2.0" && message.id != null;
+  if (!message || typeof message !== "object" || message.jsonrpc !== "2.0" || message.id == null) return false;
+  if (Object.prototype.hasOwnProperty.call(message, "method")) return false;
+  const hasResult = Object.prototype.hasOwnProperty.call(message, "result");
+  const hasError = Object.prototype.hasOwnProperty.call(message, "error");
+  return hasResult !== hasError;
 }
 
 function methodErrorMessage(status, body) {
