@@ -124,6 +124,7 @@ export class SkillManager {
 
   /** 将 agent 启用的 skill 同步到 agent 的 system prompt */
   syncAgentSkills(agent) {
+    if (!agent || agent.runtimeInitialized === false || agent.needsRepair === true) return;
     const enabled = new Set(agent?.config?.skills?.enabled || []);
     const skills = this._skillsVisibleToAgent(agent, { includePlugin: true, includeWorkspace: true })
       .filter(s => this._isRuntimeEnabledForAgent(s, enabled));

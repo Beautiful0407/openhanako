@@ -38,6 +38,7 @@ import { createCurrentStatusTool } from "../lib/tools/current-status-tool.js";
 import { createTerminalTool } from "../lib/tools/terminal-tool.js";
 import { runCompatChecks } from "../lib/compat/index.js";
 import { getPlatformPromptNote } from "./platform-prompt.js";
+import { assertAgentConfigPatchYuan, getAgentConfigRepairState } from "./yuan-registry.js";
 
 export class Agent {
   /**
@@ -96,6 +97,7 @@ export class Agent {
     this._systemPrompt = "";
     this._descriptionRefreshHandler = null;
     this._runtimeInitialized = false;
+    this._repairState = null;
 
     // Desk 系统（与 memory 完全独立）
     this._deskManager = null;
@@ -143,6 +145,7 @@ export class Agent {
     this.agentName = this._config.agent?.name || "Hanako";
     this._memoryMasterEnabled = this._config.memory?.enabled !== false;
     this._experienceEnabled = this._config.experience?.enabled === true;
+    this._refreshRepairState();
   }
 
   async init(log = () => {}, sharedModels = {}, resolveModel = null) {
@@ -166,6 +169,10 @@ export class Agent {
     this.agentName = this._config.agent?.name || "Hanako";
     this._memoryMasterEnabled = this._config.memory?.enabled !== false;
     this._experienceEnabled = this._config.experience?.enabled === true;
+    this._refreshRepairState();
+    if (this._repairState) {
+      throw new Error(`Agent config needs repair: ${this._repairState.message}`);
+    }
 
     // 3. 初始化各模块
     log(`  [agent] 3. 模块初始化完成`);
@@ -547,6 +554,8 @@ export class Agent {
   get utilityModel() { return this._utilityModel; }
   get memoryModel() { return this._memoryModel; }
   get runtimeInitialized() { return this._runtimeInitialized; }
+  get needsRepair() { return !!this._repairState; }
+  get repairState() { return this._repairState ? { ...this._repairState } : null; }
   /**
    * 当前记忆模型凭证（现场 resolve，不缓存）
    * 用户改完 provider key/url/api 后这里立即反映最新值
@@ -699,9 +708,14 @@ export class Agent {
    * @param {object} partial - 要合并的配置片段
    */
   updateConfig(partial, options = {}) {
+    assertAgentConfigPatchYuan(this.productDir, partial);
     // 写入磁盘 + 重新加载
     saveConfig(this.configPath, partial);
     this._config = loadConfig(this.configPath);
+    this._refreshRepairState();
+    if (this._repairState) {
+      throw new Error(`Agent config needs repair: ${this._repairState.message}`);
+    }
 
     // 更新身份
     const isZh = String(this._config.locale || "").startsWith("zh");
@@ -736,6 +750,10 @@ export class Agent {
     if (options.refreshDescription || partial.agent?.yuan) {
       this._descriptionRefreshHandler?.();
     }
+  }
+
+  _refreshRepairState() {
+    this._repairState = getAgentConfigRepairState(this._config, this.productDir);
   }
 
   // ════════════════════════════

@@ -24,6 +24,7 @@ import { findModel, parseModelRef } from "../shared/model-ref.js";
 import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from "../shared/default-workspace.js";
 import { relativePathInsideBase } from "./message-utils.js";
 import { detachAgentFromBundles } from "../lib/skill-bundles/store.js";
+import { assertKnownYuan, getAgentConfigRepairState } from "./yuan-registry.js";
 
 const log = createModuleLogger("agent-mgr");
 
@@ -295,10 +296,13 @@ export class AgentManager {
         const chatModel = typeof chatRef === "object"
           ? { id: chatRef.id, provider: chatRef.provider }
           : (chatRef ? { id: chatRef } : null);
+        const repairState = getAgentConfigRepairState(cfg, this._d.productDir);
         agents.push({
           id: entry.name,
           name: cfg.agent?.name || entry.name,
           yuan: cfg.agent?.yuan || "hanako",
+          needsRepair: !!repairState,
+          repairState,
           identity,
           hasAvatar,
           chatModel,
@@ -379,6 +383,8 @@ export class AgentManager {
       throw new Error(t("error.agentAlreadyExists", { id: agentId }));
     }
 
+    const yuanType = assertKnownYuan(this._d.productDir, yuan || "hanako");
+
     // 创建目录结构
     fs.mkdirSync(agentDir, { recursive: true });
     fs.mkdirSync(path.join(agentDir, "memory"), { recursive: true });
@@ -393,8 +399,6 @@ export class AgentManager {
     if (!configSeed || typeof configSeed !== "object" || Array.isArray(configSeed)) {
       throw new Error("Invalid config.example.yaml");
     }
-    const VALID_YUAN = ["hanako", "butter", "ming", "kong"];
-    const yuanType = VALID_YUAN.includes(yuan) ? yuan : "hanako";
     const config = configSeed;
     config.agent = { ...(config.agent || {}), name: name.trim(), yuan: yuanType };
     config.memory = {

@@ -182,6 +182,7 @@ describe("agents route", () => {
     const app = new Hono();
     const engine = {
       agentsDir: tempRoot,
+      productDir: path.join(path.dirname(new URL(import.meta.url).pathname), "..", "lib"),
       currentAgentId: agentId,
       providerRegistry: {
         saveProvider: vi.fn(),
@@ -205,7 +206,7 @@ describe("agents route", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         locale: "en-US",
-        agent: { name: "Hana Prime", yuan: "muse" },
+        agent: { name: "Hana Prime", yuan: "butter" },
         desk: { home_folder: "/tmp/hana-work" },
         memory: { enabled: false },
         models: { chat: { id: "gpt-5", provider: "openai" } },
@@ -215,7 +216,7 @@ describe("agents route", () => {
 
     expect(res.status).toBe(200);
     expect(engine.updateConfig).toHaveBeenCalledWith(expect.objectContaining({
-      agent: { name: "Hana Prime", yuan: "muse" },
+      agent: { name: "Hana Prime", yuan: "butter" },
       desk: { home_folder: "/tmp/hana-work" },
       memory: expect.objectContaining({ enabled: false }),
       models: { chat: { id: "gpt-5", provider: "openai" } },
@@ -226,7 +227,7 @@ describe("agents route", () => {
     expectAppEvent(engine.emitEvent, "agent-updated", {
       agentId,
       agentName: "Hana Prime",
-      yuan: "muse",
+      yuan: "butter",
     });
     expectAppEvent(engine.emitEvent, "agent-workspace-changed", {
       agentId,
@@ -279,6 +280,46 @@ describe("agents route", () => {
     expect(res.status).toBe(200);
     expect(saveProvider).toHaveBeenCalledWith("openai", { api_key: "" });
     expect(engine.onProviderChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid yuan updates before writing agent config", async () => {
+    const agentId = "hana";
+    const agentDir = path.join(tempRoot, agentId);
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "config.yaml"), "agent:\n  name: Hana\n  yuan: hanako\n", "utf-8");
+
+    const { createAgentsRoute } = await import("../server/routes/agents.js");
+    const app = new Hono();
+    const engine = {
+      agentsDir: tempRoot,
+      productDir: path.join(path.dirname(new URL(import.meta.url).pathname), "..", "lib"),
+      currentAgentId: agentId,
+      providerRegistry: {
+        saveProvider: vi.fn(),
+        removeProvider: vi.fn(),
+        getAllProvidersRaw: vi.fn(() => ({})),
+        get: vi.fn(() => null),
+      },
+      onProviderChanged: vi.fn().mockResolvedValue(undefined),
+      updateConfig: vi.fn().mockResolvedValue(undefined),
+      invalidateAgentListCache: vi.fn(),
+      listAgents: vi.fn(() => []),
+      emitEvent: vi.fn(),
+    };
+
+    app.route("/api", createAgentsRoute(engine));
+
+    const res = await app.request(`/api/agents/${agentId}/config`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: { yuan: "pm-assistant" } }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('Invalid yuan "pm-assistant"');
+    expect(fs.readFileSync(path.join(agentDir, "config.yaml"), "utf-8")).toContain("yuan: hanako");
+    expect(engine.updateConfig).not.toHaveBeenCalled();
   });
 
   it("refreshes generated description after identity changes", async () => {

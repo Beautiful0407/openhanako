@@ -50,6 +50,7 @@ import {
 } from "../../shared/secret-custody.js";
 import { denySecretMutationWithoutScope, denyWithoutScope } from "../http/capability-guard.js";
 import { recordSecurityAuditEvent } from "../http/security-audit.js";
+import { assertAgentConfigPatchYuan } from "../../core/yuan-registry.js";
 
 // ── 工具函数 ──
 
@@ -545,6 +546,8 @@ export function createAgentsRoute(engine) {
           agentPartial.memory.reenableAt = now;
         }
       }
+
+      assertAgentConfigPatchYuan(engine.productDir, agentPartial);
 
       const configPath = path.join(agentDir(engine, id), "config.yaml");
       saveConfig(configPath, agentPartial);
