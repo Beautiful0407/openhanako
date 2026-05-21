@@ -1,7 +1,4 @@
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
-const workspaceOutput = require("./workspace-output.cjs");
+import workspaceOutput from "./workspace-output.cjs";
 
 export const WORKSPACE_OUTPUT_ROOT_DIRNAME = workspaceOutput.WORKSPACE_OUTPUT_ROOT_DIRNAME;
 export const localeKey = workspaceOutput.localeKey;
