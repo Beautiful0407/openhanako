@@ -6,6 +6,7 @@ import { normalizePluginConfigSchema } from "./plugin-config.js";
 import { semverGte } from "../lib/plugin-versioning.js";
 import { detectIncompatiblePluginFormat } from "../lib/plugin-format-guard.js";
 import { createModuleLogger } from "../lib/debug-log.js";
+import { getToolSessionPath, normalizeToolRuntimeContext } from "../lib/tools/tool-session.js";
 
 const log = createModuleLogger("plugin-manager");
 
@@ -590,14 +591,15 @@ export class PluginManager {
           parameters: mod.parameters ?? {},
           ...(mod.promptSnippet ? { promptSnippet: mod.promptSnippet } : {}),
           ...(mod.promptGuidelines ? { promptGuidelines: mod.promptGuidelines } : {}),
-          execute: async (_toolCallId, params, runtimeCtx) => {
+          execute: async (_toolCallId, params, signalOrRuntimeCtx, _onUpdate, piCtx) => {
             await this.activatePlugin(entry.id, { event: `onToolCall:${mod.name}`, toolName: mod.name }, { pluginKey: entry.pluginKey });
+            const { ctx: runtimeCtx, hasExplicitCtx } = normalizeToolRuntimeContext(signalOrRuntimeCtx, piCtx);
             const sessionPath = runtimeCtx?.sessionPath
-              || runtimeCtx?.sessionManager?.getSessionFile?.()
-              || (!runtimeCtx ? this._getSessionPath?.() : null)
+              || getToolSessionPath(runtimeCtx)
+              || (!hasExplicitCtx ? this._getSessionPath?.() : null)
               || null;
             const sessionCtx = { sessionPath };
-            const mergedCtx = runtimeCtx
+            const mergedCtx = hasExplicitCtx
               ? { ...ctx, ...runtimeCtx, ...sessionCtx }
               : { ...ctx, ...sessionCtx };
             const raw = await origExecute(params, mergedCtx);
@@ -629,10 +631,15 @@ export class PluginManager {
       name: `${pluginId}_${toolDef.name}`,
       description: toolDef.description || "",
       parameters: toolDef.parameters || { type: "object", properties: {} },
-      execute: async (toolCallId, params, runtimeCtx) => {
+      execute: async (toolCallId, params, signalOrRuntimeCtx, onUpdate, piCtx) => {
+        const { ctx: runtimeCtx } = normalizeToolRuntimeContext(signalOrRuntimeCtx, piCtx);
+        const sessionPath = runtimeCtx?.sessionPath || getToolSessionPath(runtimeCtx) || null;
+        const mergedCtx = sessionPath ? { ...runtimeCtx, sessionPath } : runtimeCtx;
         const raw = invocationStyle === "pi_tool"
-          ? await origExecute(toolCallId, params, runtimeCtx)
-          : await origExecute(params, runtimeCtx);
+          ? origExecute.length >= 5
+            ? await origExecute(toolCallId, params, signalOrRuntimeCtx, onUpdate, mergedCtx)
+            : await origExecute(toolCallId, params, mergedCtx)
+          : await origExecute(params, mergedCtx);
         return normalizePluginToolResult(raw, pluginId);
       },
       _pluginId: pluginId,

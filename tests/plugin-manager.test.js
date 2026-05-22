@@ -228,6 +228,33 @@ describe("loadAll", () => {
     expect(result.content[0].text).toBe("/sessions/bridge-owner.jsonl");
   });
 
+  it("uses the Pi SDK fifth argument session ctx for static plugin tools", async () => {
+    const dir = path.join(pluginsDir, "pi-context-plugin");
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "tools", "scope.js"), `
+      export const name = "scope";
+      export const description = "Return session path";
+      export const parameters = {};
+      export async function execute(_input, ctx) {
+        return ctx.sessionPath || "";
+      }
+    `);
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+    });
+    pm.scan();
+    await pm.loadAll();
+
+    const tool = pm.getAllTools()[0];
+    const result = await tool.execute("call-1", {}, new AbortController().signal, vi.fn(), {
+      sessionManager: { getSessionFile: () => "/sessions/pi-context.jsonl" },
+    });
+
+    expect(result.content[0].text).toBe("/sessions/pi-context.jsonl");
+  });
+
   it("provides register() on instance and cleans up on unload", async () => {
     const dir = path.join(pluginsDir, "reg-test");
     fs.mkdirSync(dir, { recursive: true });
@@ -1096,6 +1123,48 @@ describe("addTool (dynamic registration)", () => {
       { agentId: "agent-a" },
     );
     expect(result.content[0].text).toBe("agent-a:issues");
+    remove();
+  });
+
+  it("passes Pi SDK fifth-argument ctx to full Pi-signature dynamic tools", async () => {
+    const dir = path.join(pluginsDir, "dynamic-pi-context");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
+      id: "dynamic-pi-context",
+      name: "Dynamic Pi Context",
+      version: "1.0.0",
+    }));
+    const pm = new PluginManager({ pluginsDir, dataDir, bus: await makeBus() });
+    pm.scan();
+    await pm.loadAll();
+    const entry = pm.getPlugin("dynamic-pi-context");
+    const execute = vi.fn(async (_toolCallId, _params, _signal, _onUpdate, ctx) => (
+      ctx.sessionPath || ""
+    ));
+    const remove = pm.addTool("dynamic-pi-context", {
+      name: "session_scope",
+      description: "Full Pi signature session scope",
+      invocationStyle: "pi_tool",
+      execute,
+    }, { pluginKey: entry.pluginKey, source: entry.source });
+
+    const tool = pm.getPluginTool("dynamic-pi-context", "session_scope");
+    const signal = new AbortController().signal;
+    const onUpdate = vi.fn();
+    const result = await tool.execute("call-pi", {}, signal, onUpdate, {
+      sessionManager: { getSessionFile: () => "/sessions/dynamic-pi.jsonl" },
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      "call-pi",
+      {},
+      signal,
+      onUpdate,
+      expect.objectContaining({
+        sessionPath: "/sessions/dynamic-pi.jsonl",
+      }),
+    );
+    expect(result.content[0].text).toBe("/sessions/dynamic-pi.jsonl");
     remove();
   });
 
