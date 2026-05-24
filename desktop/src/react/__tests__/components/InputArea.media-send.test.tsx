@@ -231,7 +231,7 @@ describe('InputArea media send', () => {
       throw new Error(`unexpected fetch path ${path}`);
     });
 
-    render(React.createElement(InputArea, { surface: 'mobile' }));
+    render(<InputArea surface="mobile" />);
 
     fireEvent.click(screen.getByTestId('send'));
 
