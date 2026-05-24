@@ -457,7 +457,7 @@
     user-select: none;
 }
 
-/* Active agent 底部角标 */
+/* Primary agent 底部角标 */
 .agent-card-badge {
     position: absolute;
     bottom: -6px;
