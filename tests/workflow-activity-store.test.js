@@ -99,4 +99,15 @@ describe("WorkflowActivityStore", () => {
     expect(store.size).toBe(1);
     expect(fs.existsSync(file)).toBe(false);
   });
+
+  it("损坏 JSON 文件不崩（按空账本起步），且可续写", () => {
+    fs.writeFileSync(file, "{ not valid json");
+    const store = new WorkflowActivityStore(file);
+    expect(store.size).toBe(0);
+    // 起空账本后仍可正常写入并重载
+    store.upsert(wfEntry());
+    expect(store.size).toBe(1);
+    const reloaded = new WorkflowActivityStore(file);
+    expect(reloaded.get("workflow-1").summary).toBe("demo");
+  });
 });
