@@ -127,4 +127,46 @@ describe("workflow tool", () => {
     expect(evts.find((x) => x.e.title === "Find")).toBeTruthy();
     expect(evts.every((x) => x.e.taskId === res.details.taskId)).toBe(true);
   });
+
+  it("派出时 details 带 startedAt（inline 概览块算时长用）", async () => {
+    const store = makeStore();
+    const tool = createWorkflowTool({
+      executeIsolated: async () => ({ replyText: "ok", error: null }), emitEvent: () => {},
+      getDeferredStore: () => store, getSubagentRunStore: () => makeRunStore(),
+    });
+    const res = await tool.execute("c1", { script: META + `return await agent('x')` }, undefined, undefined, makeCtx());
+    expect(typeof res.details.startedAt).toBe("number");
+  });
+
+  it("后台跑完 emit block_update（inline 概览块翻 done + finishedAt）带 parentSessionPath", async () => {
+    const evts = [];
+    const store = makeStore();
+    const tool = createWorkflowTool({
+      executeIsolated: async () => ({ replyText: "ok", error: null }),
+      emitEvent: (e, sp) => evts.push({ e, sp }),
+      getDeferredStore: () => store, getSubagentRunStore: () => makeRunStore(),
+    });
+    const res = await tool.execute("c1", { script: META + `return await agent('x')` }, undefined, undefined, makeCtx());
+    await flush();
+    const bu = evts.find((x) => x.e.type === "block_update" && x.e.taskId === res.details.taskId);
+    expect(bu).toBeTruthy();
+    expect(bu.e.patch.streamStatus).toBe("done");
+    expect(typeof bu.e.patch.finishedAt).toBe("number");
+    expect(bu.sp).toBe("/s.jsonl");
+  });
+
+  it("脚本运行时出错 → emit block_update streamStatus failed", async () => {
+    const evts = [];
+    const store = makeStore();
+    const tool = createWorkflowTool({
+      executeIsolated: async () => ({ replyText: "", error: "boom" }),
+      emitEvent: (e) => evts.push(e),
+      getDeferredStore: () => store, getSubagentRunStore: () => makeRunStore(),
+    });
+    const res = await tool.execute("c1", { script: META + `return await agent('x')` }, undefined, undefined, makeCtx());
+    await flush();
+    const bu = evts.find((e) => e.type === "block_update" && e.patch?.streamStatus === "failed");
+    expect(bu).toBeTruthy();
+    expect(bu.taskId).toBe(res.details.taskId);
+  });
 });

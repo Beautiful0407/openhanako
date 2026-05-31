@@ -175,6 +175,16 @@ export type RichBlock =
     streamStatus: 'running' | 'done' | 'failed' | 'aborted';
     summary?: string;
   }
+  | {
+    // workflow inline 概览块（聊天流工具卡）：只携带「名 + 状态 + 时长」，不展开实时流。
+    type: 'workflow';
+    taskId: string;
+    taskTitle: string;
+    streamStatus: 'running' | 'done' | 'failed' | 'aborted';
+    summary?: string;
+    startedAt?: number | null;
+    finishedAt?: number | null;
+  }
   | { type: 'plugin_card'; card: import('../types').PluginCardDetails };
 
 export type ContentBlock = TextDecorator | RichBlock;

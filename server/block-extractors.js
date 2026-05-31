@@ -128,6 +128,22 @@ export const BLOCK_EXTRACTORS = {
     }];
   },
 
+  // workflow inline 概览块（聊天流工具卡）：只放「名 + 状态 + 时长」概览，
+  // 详细节点分布在右侧 WorkflowCard（信息架构：inline 概览 / 右侧分布）。
+  // 不设 streamKey —— 概览块不展开实时流，区别于 subagent。
+  workflow: (details) => {
+    if (!details.taskId) return null;
+    return [{
+      type: "workflow",
+      taskId: details.taskId,
+      taskTitle: details.workflow || "",
+      streamStatus: details.streamStatus || "running",
+      summary: details.summary || null,
+      startedAt: details.startedAt ?? null,
+      finishedAt: details.finishedAt ?? null,
+    }];
+  },
+
   update_settings: (details) => {
     if (details.settingsUpdate) {
       return [{

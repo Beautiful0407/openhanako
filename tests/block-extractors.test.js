@@ -633,6 +633,26 @@ describe('subagent', () => {
 
 // ─── plugin card extraction ───────────────────────────────────────────────────
 
+describe('workflow', () => {
+  const extractor = BLOCK_EXTRACTORS.workflow;
+
+  it('从 details 提取 workflow 概览 block（名/状态/时长，无 streamKey）', () => {
+    const result = extractor({ taskId: 'workflow-1', workflow: '三行晨诗', streamStatus: 'running', startedAt: 1000 });
+    expect(result).toEqual([{
+      type: 'workflow', taskId: 'workflow-1', taskTitle: '三行晨诗',
+      streamStatus: 'running', summary: null, startedAt: 1000, finishedAt: null,
+    }]);
+  });
+
+  it('无 taskId 返回 null', () => {
+    expect(extractor({ workflow: 'x' })).toBeNull();
+  });
+
+  it('streamStatus 缺省 running', () => {
+    expect(extractor({ taskId: 'w1', workflow: 'x' })[0].streamStatus).toBe('running');
+  });
+});
+
 describe('extractBlocks: plugin card extraction', () => {
   it('details.card with pluginId produces a plugin_card block', () => {
     const details = { card: { pluginId: 'fm', route: '/k', title: 'Chart' } };
