@@ -274,6 +274,10 @@ export class McpStreamableHttpClient {
     try {
       return await this._request(method, params, opts);
     } catch (err) {
+      // The error we ultimately surface. A 401 refresh may replace it with a more
+      // specific cause; we track that on a local instead of reassigning the catch
+      // binding `err` (no-ex-assign).
+      let failure = err;
       // 401 OAuth self-heal (方案 A, bounded to a single retry). A live request
       // came back 401: ask the runtime to force a token refresh, and if it
       // produced a new token, replay this one request with it. We retry AT MOST
@@ -286,15 +290,15 @@ export class McpStreamableHttpClient {
         // dead → invalid_grant, or the retry hit a fresh error). Adopt it as the
         // failing context: a dead refresh token is auth-terminal, so _failLiveSession
         // routes it to needs-auth instead of leaving a bare 401 to back off blindly.
-        if (refreshed.error) err = refreshed.error;
+        if (refreshed.error) failure = refreshed.error;
       }
       // A live request failed in a way the inline 404 self-heal could not recover
       // (network drop, 5xx, unrecovered 401/403, or a dead refresh token's
       // invalid_grant). Tear the session down and report it so the runtime can run
       // backoff reconnect; auth-terminal failures additionally flag needsAuth for
       // the OAuth self-heal / re-auth. This never silently swallows the error.
-      this._failLiveSession(err);
-      throw err;
+      this._failLiveSession(failure);
+      throw failure;
     }
   }
 
@@ -519,12 +523,7 @@ export class McpLegacySseClient {
       // it yields a new token, replay the request once with a fresh id. A second
       // 401 or no refresh rethrows. No loop.
       if (err instanceof McpHttpError && err.status === 401 && this.refreshAuthToken) {
-        let newToken = "";
-        try {
-          newToken = stringOrEmpty(await this.refreshAuthToken());
-        } catch (refreshErr) {
-          throw refreshErr;
-        }
+        const newToken = stringOrEmpty(await this.refreshAuthToken());
         if (newToken) return this._sendRequest(method, params, timeout);
       }
       throw err;
