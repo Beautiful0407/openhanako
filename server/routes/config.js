@@ -21,7 +21,12 @@ import {
   resolveDefaultWorkspacePath,
 } from "../../shared/default-workspace.js";
 import { splitByScope, injectGlobalFields } from '../../shared/config-scope.js';
-import { mergeWorkspaceHistory, normalizeWorkspacePath } from "../../shared/workspace-history.js";
+import {
+  clearWorkspaceHistory,
+  mergeWorkspaceHistory,
+  normalizeWorkspacePath,
+  removeWorkspaceHistoryEntries,
+} from "../../shared/workspace-history.js";
 import { isSearchApiProvider, normalizeSearchApiKeys } from "../../shared/search-providers.js";
 import { resolveAgent, resolveAgentStrict, AgentNotFoundError } from "../utils/resolve-agent.js";
 import { formatSkillsForPrompt } from "../../lib/pi-sdk/index.js";
@@ -218,6 +223,29 @@ export function createConfigRoute(engine) {
       const stat = await fs.stat(folder).catch(() => null);
       if (!stat?.isDirectory()) return c.json({ error: "path must be an existing directory" }, 400);
       const cwdHistory = mergeWorkspaceHistory(engine.config.cwd_history, [folder]);
+      await engine.updateConfig({ cwd_history: cwdHistory });
+      return c.json({ ok: true, cwd_history: cwdHistory });
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  route.delete("/config/workspaces/recent", async (c) => {
+    try {
+      const body = await safeJson(c).catch(() => ({}));
+      const folder = normalizeWorkspacePath(body?.path);
+      if (!folder) return c.json({ error: "path must be a non-empty string" }, 400);
+      const cwdHistory = removeWorkspaceHistoryEntries(engine.config.cwd_history, [folder]);
+      await engine.updateConfig({ cwd_history: cwdHistory });
+      return c.json({ ok: true, cwd_history: cwdHistory });
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  route.delete("/config/workspaces/recent/all", async (c) => {
+    try {
+      const cwdHistory = clearWorkspaceHistory();
       await engine.updateConfig({ cwd_history: cwdHistory });
       return c.json({ ok: true, cwd_history: cwdHistory });
     } catch (err) {
