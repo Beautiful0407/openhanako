@@ -262,6 +262,7 @@
 /* ── Message action buttons (shared by user & assistant) ── */
 
 .msgActions {
+    --msg-actions-popover-width: 86px;
     position: absolute;
     bottom: 4px;
     right: 4px;
@@ -278,7 +279,7 @@
 .msgActionsVisible { opacity: 1 !important; }
 
 .messageGroupAssistant:hover .msgActions,
-.messageGroupUser:hover .msgActions { opacity: 0.6; }
+.messageGroupUser:hover .msgActions { opacity: 1; }
 .msgActions:hover { opacity: 1 !important; }
 
 .msgActionsPopover {
@@ -288,8 +289,10 @@
     transform: translateY(-50%);
     display: flex;
     gap: 2px;
-    background: var(--hana-bg);
-    border: 1px solid var(--hana-border);
+    box-sizing: border-box;
+    min-width: var(--msg-actions-popover-width);
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--overlay-light, rgba(0, 0, 0, 0.08));
     border-radius: 6px;
     padding: 2px 3px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -298,6 +301,8 @@
     transition: opacity var(--duration-fast);
 }
 
+.messageGroupAssistant:hover .msgActionsPopover,
+.messageGroupUser:hover .msgActionsPopover,
 .msgActions:hover .msgActionsPopover {
     opacity: 1;
     pointer-events: auto;
