@@ -830,6 +830,34 @@ function jsonResponse(body: unknown, ok = true): Response {
       expect(updateSessionModelMock).toHaveBeenCalled();
     });
 
+    it('hydrates audio capability fields from the switch response into the per-session model snapshot', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        agentId: null,
+        currentModelId: 'mimo-v2.5',
+        currentModelName: 'MiMo V2.5',
+        currentModelProvider: 'mimo',
+        currentModelInput: ['text'],
+        currentModelAudio: true,
+        currentModelAudioTransport: 'mimo-input-audio',
+        currentModelAudioTransportSupported: true,
+      }));
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        messages: [], blocks: [], todos: [], hasMore: false,
+      }));
+
+      await switchSession('/audio-session');
+
+      const models = mockState.sessionModelsByPath as Record<string, Record<string, unknown>>;
+      expect(models['/audio-session']).toMatchObject({
+        id: 'mimo-v2.5',
+        provider: 'mimo',
+        input: ['text'],
+        audio: true,
+        audioTransport: 'mimo-input-audio',
+        audioTransportSupported: true,
+      });
+    });
+
     it('已缓存的 session：switchSession 不再次 loadMessages', async () => {
       // 预置：/a 已经 initSession 过
       (mockState.chatSessions as Record<string, unknown>)['/a'] = {

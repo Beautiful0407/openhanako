@@ -79,7 +79,13 @@ describe("sessions route", () => {
       cwd: "/tmp/workspace",
       currentAgentId: "hana",
       agentName: "Hana",
-      currentModel: { id: "gpt-test", provider: "openai" },
+      currentModel: {
+        id: "mimo-v2.5",
+        provider: "mimo",
+        api: "openai-completions",
+        baseUrl: "https://api.xiaomimimo.com/v1",
+        input: ["text"],
+      },
       isSessionStreaming: vi.fn(() => false),
       switchSession: vi.fn(async (sessionPath) => {
         engine.currentSessionPath = sessionPath;
@@ -108,6 +114,9 @@ describe("sessions route", () => {
     expect(browserManagerMock.resumeForSession).toHaveBeenCalledWith("/tmp/agents/a/sessions/new.jsonl");
     expect(data.browserRunning).toBe(true); // resumeForSession sets it running
     expect(data.browserUrl).toBe("https://after.example.com"); // per-session URL
+    expect(data.currentModelAudio).toBe(true);
+    expect(data.currentModelAudioTransport).toBe("mimo-input-audio");
+    expect(data.currentModelAudioTransportSupported).toBe(true);
   });
 
   it("passes workspaceFolders when creating a new session and returns the normalized scope", async () => {

@@ -319,6 +319,70 @@ describe('InputArea media send', () => {
     });
   });
 
+  it('uses the switched session model audio snapshot when sending recorded audio', async () => {
+    useStore.setState({
+      attachedFiles: [{
+        fileId: 'sf_recording',
+        path: '/tmp/hana/session-files/recording.wav',
+        name: '录音 1.wav',
+        isDirectory: false,
+        mimeType: 'audio/wav',
+      }],
+      attachedFilesBySession: {
+        '/session/media.jsonl': [{
+          fileId: 'sf_recording',
+          path: '/tmp/hana/session-files/recording.wav',
+          name: '录音 1.wav',
+          isDirectory: false,
+          mimeType: 'audio/wav',
+        }],
+      },
+      models: [{
+        id: 'deepseek-chat',
+        provider: 'deepseek',
+        name: 'DeepSeek Chat',
+        input: ['text'],
+        isCurrent: true,
+      }],
+      sessionModelsByPath: {
+        '/session/media.jsonl': {
+          id: 'mimo-v2.5',
+          provider: 'mimo',
+          name: 'MiMo V2.5',
+          input: ['text'],
+          audio: true,
+          audioTransport: 'mimo-input-audio',
+          audioTransportSupported: true,
+        },
+      },
+    } as never);
+    window.platform = {
+      readFileBase64: vi.fn(async () => 'AUDIO_BASE64'),
+    } as unknown as typeof window.platform;
+
+    render(React.createElement(InputArea));
+
+    fireEvent.click(screen.getByTestId('send'));
+
+    await waitFor(() => {
+      expect(mocks.wsSend).toHaveBeenCalledTimes(1);
+    });
+    const payload = JSON.parse(String(mocks.wsSend.mock.calls[0][0]));
+    expect(window.platform.readFileBase64).toHaveBeenCalledWith('/tmp/hana/session-files/recording.wav');
+    expect(payload.text).toBe('');
+    expect(payload.audios).toEqual([{
+      type: 'audio',
+      data: 'AUDIO_BASE64',
+      mimeType: 'audio/wav',
+    }]);
+    expect(payload.displayMessage.attachments[0]).toMatchObject({
+      fileId: 'sf_recording',
+      path: '/tmp/hana/session-files/recording.wav',
+      name: '录音 1.wav',
+      mimeType: 'audio/wav',
+    });
+  });
+
   it('registers recorded audio as an attached file after saving the recording', async () => {
     type MockAudioProcessor = {
       onaudioprocess: ((event: { inputBuffer: { getChannelData: () => Float32Array } }) => void) | null;

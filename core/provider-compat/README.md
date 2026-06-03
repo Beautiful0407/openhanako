@@ -128,8 +128,8 @@ Hana 内部用 `{ type: "audio", data, mimeType }` 表示当前轮音频。UI、
 
 出站请求分两步：
 
-1. `core/provider-media-serializer.js` 把当前轮 inline media 统一包成 OpenAI-compatible data URL envelope。
-2. `normalizeProviderPayload()` 在 first-match-wins provider 子模块之前，根据 `shared/model-capabilities.js` 的 `resolveModelAudioInputTransport(model)` 执行 audio transport pre-pass。当前 `mimo-input-audio` 与 `openai-input-audio` 都复用 [`input-audio.js`](input-audio.js)，把 `data:audio/...` 或 canonical audio block 转成 `{ type: "input_audio", input_audio: { data, format } }`。
+1. `core/provider-media-serializer.js` 在 utility 路径把当前轮 audio block 直接序列化成 Chat Completions 官方 `{ type: "input_audio", input_audio: { data, format } }`，其中 `format` 只允许 `wav` / `mp3`。
+2. chat 路径仍经过 Pi SDK，它会把非 text block 统一输出成 `image_url` data URL。`normalizeProviderPayload()` 在 first-match-wins provider 子模块之前，根据 `shared/model-capabilities.js` 的 `resolveModelAudioInputTransport(model)` 执行 audio transport pre-pass。当前 `mimo-input-audio` 与 `openai-input-audio` 都复用 [`input-audio.js`](input-audio.js)，把 Pi SDK 产出的 `data:audio/...` 或旧 canonical audio block 转成同一个 `input_audio` 结构；不支持的音频格式必须显式报错，不允许继续伪装成 `image_url`。
 
 接入未来 DeepSeek 音频时，优先在 known model / provider sync 投影里声明：
 

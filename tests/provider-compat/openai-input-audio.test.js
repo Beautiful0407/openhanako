@@ -58,4 +58,26 @@ describe("provider-compat/openai-input-audio", () => {
 
     expect(normalizeProviderPayload(payload, model, { mode: "chat" })).toBe(payload);
   });
+
+  it("fails closed for unsupported input_audio data URL formats on native audio transports", () => {
+    const model = {
+      id: "gpt-audio-mini",
+      provider: "openai",
+      api: "openai-completions",
+      input: ["text"],
+      audio: true,
+    };
+    const payload = {
+      model: "gpt-audio-mini",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: "data:audio/ogg;base64,T2dnUw==" } },
+        ],
+      }],
+    };
+
+    expect(() => normalizeProviderPayload(payload, model, { mode: "chat" }))
+      .toThrow(/unsupported input_audio format.*audio\/ogg/);
+  });
 });

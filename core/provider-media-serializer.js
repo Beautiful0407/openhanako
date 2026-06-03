@@ -5,10 +5,12 @@
  * `{ type: "image" | "video" | "audio", data, mimeType }`.
  *
  * Provider-specific adapters should not leak into UI/session code. This module
- * creates a provider-neutral data URL envelope for OpenAI-compatible content
- * arrays; provider-compat modules can then translate that envelope into the
- * exact transport a provider expects, such as `input_audio`.
+ * serializes current-turn media into the closest OpenAI-compatible content
+ * shape. Audio uses Chat Completions' official `input_audio` block at the
+ * source; provider-compat still accepts older data URL envelopes produced by
+ * the Pi SDK chat path.
  */
+import { openAIInputAudioFormatFromMimeType } from "../shared/audio-mime.js";
 
 const DEFAULT_MIME_BY_KIND = Object.freeze({
   image: "image/png",
@@ -36,8 +38,24 @@ export function inlineMediaDataUrl(block) {
   return `data:${mime};base64,${data}`;
 }
 
+export function serializeOpenAIInputAudioContentBlock(block) {
+  const mimeType = block?.mimeType || block?.mime || DEFAULT_MIME_BY_KIND.audio;
+  const format = openAIInputAudioFormatFromMimeType(mimeType);
+  if (!format || typeof block?.data !== "string") {
+    throw new Error(`unsupported OpenAI input_audio payload: ${mimeType || "unknown"}`);
+  }
+  return {
+    type: "input_audio",
+    input_audio: {
+      data: block.data,
+      format,
+    },
+  };
+}
+
 export function serializeOpenAICompatibleContentBlock(block) {
   if (block?.type === "text") return { type: "text", text: block.text || "" };
+  if (block?.type === "audio") return serializeOpenAIInputAudioContentBlock(block);
   if (isInlineMediaBlock(block)) {
     return {
       type: "image_url",
@@ -52,5 +70,6 @@ export function serializeOpenAICompatibleContentBlock(block) {
 export function serializeResponsesContentBlock(block) {
   if (block?.type === "text") return { type: "input_text", text: block.text || "" };
   if (block?.type === "image") return { type: "input_image", image_url: inlineMediaDataUrl(block) };
+  if (block?.type === "audio") return serializeOpenAIInputAudioContentBlock(block);
   return { type: "input_text", text: JSON.stringify(block) };
 }

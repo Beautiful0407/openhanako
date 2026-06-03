@@ -2,10 +2,11 @@
  * OpenAI-compatible input_audio helper.
  *
  * Pi SDK currently serializes non-text local media into image_url data URLs.
+ * Utility calls may also carry Hana's canonical audio blocks directly.
  * Audio-capable OpenAI-compatible providers such as MiMo expect input_audio
- * parts with raw base64 data plus a format string.
+ * parts with raw base64 data plus a `wav` or `mp3` format string.
  */
-import { audioFormatFromMimeType } from "../../shared/audio-mime.js";
+import { openAIInputAudioFormatFromMimeType } from "../../shared/audio-mime.js";
 
 export function normalizeOpenAIInputAudioPayload(payload) {
   if (!Array.isArray(payload?.messages)) return payload;
@@ -39,6 +40,7 @@ export function normalizeOpenAIInputAudioPayload(payload) {
 
 function getDataAudio(part) {
   if (!part || typeof part !== "object") return null;
+  if (part.type === "input_audio") return null;
   if (part.type === "audio") return parseCanonicalAudioBlock(part);
   if (part.type !== "image_url") return null;
   const url = part.image_url?.url ?? part.imageUrl?.url;
@@ -48,8 +50,9 @@ function getDataAudio(part) {
 
 function parseCanonicalAudioBlock(part) {
   const mimeType = part.mimeType || part.mime || "audio/wav";
-  const format = audioFormatFromMimeType(mimeType);
-  if (!format || typeof part.data !== "string") return null;
+  const format = openAIInputAudioFormatFromMimeType(mimeType);
+  if (!format) throw new Error(`unsupported input_audio format for MIME type: ${mimeType}`);
+  if (typeof part.data !== "string") throw new Error("input_audio data must be base64 string");
   return {
     data: part.data,
     format,
@@ -59,12 +62,12 @@ function parseCanonicalAudioBlock(part) {
 function parseAudioDataUrl(url) {
   if (!url.toLowerCase().startsWith("data:audio/")) return null;
   const comma = url.indexOf(",");
-  if (comma < 0) return null;
+  if (comma < 0) throw new Error("input_audio data URL must include base64 payload");
   const metadata = url.slice(5, comma).toLowerCase();
-  if (!metadata.includes(";base64")) return null;
+  if (!metadata.includes(";base64")) throw new Error("input_audio data URL must be base64 encoded");
   const mimeType = metadata.split(";")[0];
-  const format = audioFormatFromMimeType(mimeType);
-  if (!format) return null;
+  const format = openAIInputAudioFormatFromMimeType(mimeType);
+  if (!format) throw new Error(`unsupported input_audio format for MIME type: ${mimeType}`);
   return {
     data: url.slice(comma + 1),
     format,

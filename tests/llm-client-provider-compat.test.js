@@ -194,6 +194,38 @@ describe("callText provider-compat routing", () => {
     ]);
   });
 
+  it("fails before fetch when OpenAI-compatible audio input uses an unsupported format", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [{ message: { content: "ok" } }],
+      }),
+    });
+
+    await expect(callText({
+      api: "openai-completions",
+      baseUrl: "https://api.xiaomimimo.com/v1",
+      model: {
+        id: "mimo-v2.5",
+        provider: "mimo",
+        api: "openai-completions",
+        baseUrl: "https://api.xiaomimimo.com/v1",
+        compat: { hanaAudioInput: true },
+      },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "listen" },
+          { type: "audio", data: "T2dnUw==", mimeType: "audio/ogg" },
+        ],
+      }],
+      timeoutMs: 5_000,
+    })).rejects.toThrow(/unsupported OpenAI input_audio payload.*audio\/ogg/);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("does not synthesize utility output caps from model capability metadata", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,

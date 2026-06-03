@@ -47,8 +47,11 @@ import { serializeSessionFile } from "../../lib/session-files/session-file-respo
 import { browserScreenshotPath } from "../../lib/session-files/browser-screenshot-file.js";
 import { modelSupportsXhigh } from "../../core/session-thinking-level.js";
 import {
+  modelSupportsDirectAudioInput,
   modelSupportsDirectVideoInput,
+  modelSupportsAudioInput,
   modelSupportsVideoInput,
+  resolveModelAudioInputTransport,
   resolveModelVideoInputTransport,
 } from "../../shared/model-capabilities.js";
 import { replayLatestUserTurn } from "../../core/session-turn-actions.js";
@@ -1242,6 +1245,9 @@ export function createSessionsRoute(engine, hub = null) {
         currentModelVideo: modelSupportsVideoInput(activeModel),
         currentModelVideoTransport: resolveModelVideoInputTransport(activeModel),
         currentModelVideoTransportSupported: modelSupportsDirectVideoInput(activeModel),
+        currentModelAudio: modelSupportsAudioInput(activeModel),
+        currentModelAudioTransport: resolveModelAudioInputTransport(activeModel),
+        currentModelAudioTransportSupported: modelSupportsDirectAudioInput(activeModel),
         currentModelReasoning: activeModel?.reasoning ?? null,
         currentModelXhigh: modelSupportsXhigh(activeModel),
         currentModelContextWindow: activeModel?.contextWindow ?? null,

@@ -37,6 +37,8 @@ const MIME_TO_FORMAT = Object.freeze({
   "audio/webm": "webm",
 });
 
+const OPENAI_INPUT_AUDIO_FORMATS = Object.freeze(new Set(["wav", "mp3"]));
+
 export function normalizeAudioMimeType(mimeType) {
   return typeof mimeType === "string" ? mimeType.trim().toLowerCase() : "";
 }
@@ -55,6 +57,11 @@ export function extensionFromChatAudioMime(mimeType) {
 
 export function audioFormatFromMimeType(mimeType) {
   return MIME_TO_FORMAT[normalizeAudioMimeType(mimeType)] || "";
+}
+
+export function openAIInputAudioFormatFromMimeType(mimeType) {
+  const format = audioFormatFromMimeType(mimeType);
+  return OPENAI_INPUT_AUDIO_FORMATS.has(format) ? format : "";
 }
 
 export function isChatAudioBase64WithinLimit(base64Data) {
