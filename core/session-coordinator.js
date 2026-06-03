@@ -40,7 +40,10 @@ import { formatWorkspaceScopePrompt, normalizeSessionFolderScope, normalizeWorks
 import { getProviderPromptPatches } from "./provider-prompt-patches.js";
 import { prepareVisionInputForTextOnlyModel } from "./vision-prepare.js";
 import { prepareModelImageInputsForPrompt } from "./model-image-preprocess.js";
-import { pruneSessionInlineMediaHistory } from "./session-inline-media-prune.js";
+import {
+  pruneSessionInlineMediaHistory,
+  repairSessionInlineMediaEntriesInFile,
+} from "./session-inline-media-prune.js";
 import { createVisionContextInjectionExtension } from "./vision-context-injector.js";
 import {
   modelSupportsDirectAudioInput,
@@ -1451,6 +1454,7 @@ export class SessionCoordinator {
     this._emitSessionHealthWarning(sessionPath);
     // #1285: 在 open 前修复坏会话的孤儿 toolResult（必须早于 SessionManager.open）
     this._repairOrphanToolHistory(sessionPath);
+    this._repairInlineMediaHistory(sessionPath);
 
     // 冷启动恢复：model 由 PI SDK 从 session JSONL 恢复（单一数据源），不从 session-meta.json 读
     const sessionMgr = SessionManager.open(sessionPath, this._d.getAgent().sessionDir);
@@ -1503,6 +1507,20 @@ export class SessionCoordinator {
       }
     } catch (err) {
       log.warn(`orphan tool history repair failed for ${path.basename(sessionPath)}: ${err.message}`);
+    }
+  }
+
+  _repairInlineMediaHistory(sessionPath) {
+    try {
+      const result = repairSessionInlineMediaEntriesInFile(sessionPath);
+      if (result.repaired) {
+        log.warn(
+          `session restore: ${path.basename(sessionPath)} 清理 ${result.stripped} 个 inline media `
+          + `(image=${result.strippedImages}, video=${result.strippedVideos}, audio=${result.strippedAudios})`
+        );
+      }
+    } catch (err) {
+      log.warn(`inline media history repair failed for ${path.basename(sessionPath)}: ${err.message}`);
     }
   }
 
@@ -2457,6 +2475,7 @@ export class SessionCoordinator {
     this._emitSessionHealthWarning(sessionPath);
     // #1285: 在 open 前修复坏会话的孤儿 toolResult（必须早于 SessionManager.open）
     this._repairOrphanToolHistory(sessionPath);
+    this._repairInlineMediaHistory(sessionPath);
     const sessionMgr = SessionManager.open(sessionPath, agent.sessionDir);
     const cwd = sessionMgr.getCwd?.() || undefined;
     const result = await this.createSession(sessionMgr, cwd, memoryEnabled, null, {
@@ -2524,6 +2543,7 @@ export class SessionCoordinator {
       this._emitSessionHealthWarning(sessionPath);
       // #1285: 在 open 前修复坏会话的孤儿 toolResult（必须早于 SessionManager.open）
       this._repairOrphanToolHistory(sessionPath);
+      this._repairInlineMediaHistory(sessionPath);
       const sessionMgr = SessionManager.open(sessionPath, agent.sessionDir);
       const cwd = sessionMgr.getCwd?.() || undefined;
       await this.createSession(sessionMgr, cwd, memoryEnabled, null, {
@@ -3255,6 +3275,7 @@ export class SessionCoordinator {
         && fs.existsSync(opts.resumeSessionPath);
       if (resumeExisting) {
         this._repairOrphanToolHistory(opts.resumeSessionPath);
+        this._repairInlineMediaHistory(opts.resumeSessionPath);
         tempSessionMgr = SessionManager.open(opts.resumeSessionPath, sessionDir);
         isResumedSession = true;
       } else {

@@ -226,6 +226,57 @@ describe("CompactionGuardExtension", () => {
       expect(computeHardTruncation).not.toHaveBeenCalled();
     });
 
+    it("strips inline media from compaction preparation before estimating or snapshotting history", async () => {
+      estimatePreparationTokens.mockReturnValue(50_000);
+      const mediaPreparation = {
+        ...preparation,
+        messagesToSummarize: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "[attached_audio: /tmp/recording.wav]\n听一下" },
+              { type: "audio", data: "BASE64_AUDIO", mimeType: "audio/wav" },
+            ],
+            timestamp: 1,
+          },
+          {
+            role: "toolResult",
+            toolCallId: "call_screenshot",
+            toolName: "browser_screenshot",
+            content: [
+              { type: "text", text: "Screenshot captured" },
+              { type: "image", data: "BASE64_IMAGE", mimeType: "image/png" },
+            ],
+            timestamp: 2,
+          },
+        ],
+      };
+
+      await pi.trigger(
+        "session_before_compact",
+        { preparation: mediaPreparation, signal: { aborted: false } },
+        ctx,
+      );
+
+      const estimatedPreparation = estimatePreparationTokens.mock.calls[0][0];
+      expect(JSON.stringify(estimatedPreparation)).not.toContain("BASE64_AUDIO");
+      expect(JSON.stringify(estimatedPreparation)).not.toContain("BASE64_IMAGE");
+      expect(estimatedPreparation.messagesToSummarize[0].content).toEqual([
+        { type: "text", text: "[attached_audio: /tmp/recording.wav]\n听一下" },
+      ]);
+      expect(estimatedPreparation.messagesToSummarize[1].content).toEqual([
+        { type: "text", text: "Screenshot captured" },
+        { type: "text", text: "[图片已省略：历史图片保留为文件引用，避免重复发送原始 base64]" },
+      ]);
+
+      const passedMessages = cacheCompactor.mock.calls[0][0].messages;
+      expect(passedMessages).toEqual(estimatedPreparation.messagesToSummarize);
+      expect(buildSessionCacheSnapshot).toHaveBeenCalledWith("/sessions/current.jsonl", expect.objectContaining({
+        reason: "compaction.history",
+        messages: estimatedPreparation.messagesToSummarize,
+      }));
+    });
+
     it("does not let the latest transformed context expand the Pi compaction boundary", async () => {
       estimatePreparationTokens.mockReturnValue(50_000);
       await pi.trigger("context", {

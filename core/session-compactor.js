@@ -5,6 +5,7 @@ import {
   prepareCompaction,
 } from "../lib/pi-sdk/index.js";
 import { computeHardTruncation } from "./compaction-utils.js";
+import { stripAllInlineMediaForHistory } from "./message-sanitizer.js";
 import { buildSessionCacheSnapshot } from "./session-cache-snapshot.js";
 import { runSessionSnapshotSideTask } from "../lib/llm/session-snapshot-side-task-runner.js";
 import { buildCacheStrategyMetadata } from "../lib/llm/cache-strategy-contract.js";
@@ -145,7 +146,32 @@ function buildCachePreservingTurnPrefixInstruction() {
   };
 }
 
+export function stripInlineMediaFromCompactionPreparation(preparation) {
+  if (!preparation || typeof preparation !== "object") return preparation;
+
+  const messagesToSummarize = Array.isArray(preparation.messagesToSummarize)
+    ? stripAllInlineMediaForHistory(preparation.messagesToSummarize)
+    : null;
+  const turnPrefixMessages = Array.isArray(preparation.turnPrefixMessages)
+    ? stripAllInlineMediaForHistory(preparation.turnPrefixMessages)
+    : null;
+
+  const next = {};
+  let changed = false;
+  if (messagesToSummarize && messagesToSummarize.messages !== preparation.messagesToSummarize) {
+    next.messagesToSummarize = messagesToSummarize.messages;
+    changed = true;
+  }
+  if (turnPrefixMessages && turnPrefixMessages.messages !== preparation.turnPrefixMessages) {
+    next.turnPrefixMessages = turnPrefixMessages.messages;
+    changed = true;
+  }
+
+  return changed ? { ...preparation, ...next } : preparation;
+}
+
 function buildCachePreservingCompactionRequests({ preparation, customInstructions } = {}) {
+  preparation = stripInlineMediaFromCompactionPreparation(preparation);
   const messagesToSummarize = Array.isArray(preparation?.messagesToSummarize)
     ? preparation.messagesToSummarize
     : [];
@@ -231,6 +257,7 @@ export function estimateCachePreservingCompactionRequest({
   systemPrompt = "",
   customInstructions,
 } = {}) {
+  preparation = stripInlineMediaFromCompactionPreparation(preparation);
   const systemPromptTokens = estimateTextTokens(systemPrompt);
   const requests = buildCachePreservingCompactionRequests({ preparation, customInstructions })
     .map((request) => {
@@ -350,6 +377,7 @@ export async function createCachePreservingCompactionResult({
 }) {
   if (!preparation) throw new Error("Cache-preserving compaction requires preparation");
   if (!model) throw new Error("Cache-preserving compaction requires a model");
+  preparation = stripInlineMediaFromCompactionPreparation(preparation);
   const rawMessagesToSummarize = Array.isArray(preparation.messagesToSummarize)
     ? preparation.messagesToSummarize
     : [];

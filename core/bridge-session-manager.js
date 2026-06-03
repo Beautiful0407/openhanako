@@ -15,6 +15,10 @@ import { t, getLocale } from "../server/i18n.js";
 import { atomicWriteSync, safeReadJSON } from "../shared/safe-fs.js";
 import { findModel } from "../shared/model-ref.js";
 import { teardownSessionResources } from "./session-teardown.js";
+import {
+  pruneSessionInlineMediaHistory,
+  repairSessionInlineMediaEntriesInFile,
+} from "./session-inline-media-prune.js";
 import { isAbortLikeError, prepareVisionInputForTextOnlyModel } from "./vision-prepare.js";
 import { prepareModelImageInputsForPrompt } from "./model-image-preprocess.js";
 import { withVisionContextInjectionExtension } from "./vision-context-injector.js";
@@ -250,6 +254,20 @@ export class BridgeSessionManager {
       this._deps.emitEvent(event, sessionPath);
     } catch (err) {
       log.warn(`emit ${event?.type || "event"} failed: ${err?.message || err}`);
+    }
+  }
+
+  _repairInlineMediaHistory(sessionPath, label) {
+    try {
+      const result = repairSessionInlineMediaEntriesInFile(sessionPath);
+      if (result.repaired) {
+        log.warn(
+          `${label}: ${path.basename(sessionPath)} 清理 ${result.stripped} 个 inline media `
+          + `(image=${result.strippedImages}, video=${result.strippedVideos}, audio=${result.strippedAudios})`
+        );
+      }
+    } catch (err) {
+      log.warn(`inline media history repair failed for ${label} ${path.basename(sessionPath)}: ${err.message}`);
     }
   }
 
@@ -716,6 +734,7 @@ export class BridgeSessionManager {
         } catch (err) {
           log.warn(`orphan tool history repair failed for bridge ${path.basename(existingPath)}: ${err.message}`);
         }
+        this._repairInlineMediaHistory(existingPath, "bridge session restore");
         try {
           mgr = SessionManager.open(existingPath, sessionDir);
         } catch (err) {
@@ -913,6 +932,11 @@ export class BridgeSessionManager {
         await session.prompt(promptText, promptOpts);
       } finally {
         this._prePromptAbortControllers.delete(sessionKey);
+        try {
+          pruneSessionInlineMediaHistory(session);
+        } catch (err) {
+          log.warn(`bridge inline media prune failed (${sessionKey}): ${err?.message || err}`);
+        }
         await teardownSessionResources({
           session,
           unsub,
@@ -1226,6 +1250,7 @@ export class BridgeSessionManager {
     } catch (err) {
       log.warn(`orphan tool history repair failed for bridge compact ${path.basename(sessionFilePath)}: ${err.message}`);
     }
+    this._repairInlineMediaHistory(sessionFilePath, "bridge compact reopen");
     const mgr = SessionManager.open(sessionFilePath, sessionDir);
     const bridgeContext = this.getBridgeContextForSessionPath(sessionFilePath, { agentId: agent.id })
       || this._buildBridgeContext(sessionKey, entry, { guest: false }, agent);
