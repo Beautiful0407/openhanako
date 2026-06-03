@@ -1375,7 +1375,13 @@
       "homeFolderDesc": "Default working directory for new chats, patrol and cron tasks",
       "homeFolderPlaceholder": "Not set (choose manually each time)",
       "homeFolderClear": "Clear",
-      "homeFolderBrowse": "Browse"
+      "homeFolderBrowse": "Browse",
+      "contextFilesTitle": "Workspace instruction injection",
+      "contextFilesDesc": "Inject AGENTS.md / CLAUDE.md from the current workspace project into new session system prompts before memory.",
+      "injectAgentsMd": "Inject AGENTS.md",
+      "injectAgentsMdDesc": "When enabled, new sessions read AGENTS.md from the current working directory up to the Git root.",
+      "injectClaudeMd": "Inject CLAUDE.md",
+      "injectClaudeMdDesc": "When enabled, new sessions read CLAUDE.md from the current working directory up to the Git root."
     },
     "toolCaps": {
       "title": "Skill Installation Permissions"

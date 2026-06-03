@@ -1326,7 +1326,13 @@
       "homeFolderDesc": "新建對話預設使用的工作目錄，巡檢和定時任務也在這裡執行",
       "homeFolderPlaceholder": "未設定（每次手動選擇）",
       "homeFolderClear": "清除",
-      "homeFolderBrowse": "選擇資料夾"
+      "homeFolderBrowse": "選擇資料夾",
+      "contextFilesTitle": "工作區說明注入",
+      "contextFilesDesc": "把目前工作台專案裡的 AGENTS.md / CLAUDE.md 注入到新建會話的系統提示詞中，位置在記憶之前。",
+      "injectAgentsMd": "注入 AGENTS.md",
+      "injectAgentsMdDesc": "開啟後，新會話會讀取目前工作目錄到 Git 根目錄之間的 AGENTS.md。",
+      "injectClaudeMd": "注入 CLAUDE.md",
+      "injectClaudeMdDesc": "開啟後，新會話會讀取目前工作目錄到 Git 根目錄之間的 CLAUDE.md。"
     },
     "toolCaps": {
       "title": "技能安裝權限"

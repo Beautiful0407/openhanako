@@ -1375,7 +1375,13 @@
       "homeFolderDesc": "新建对话默认使用的工作目录，巡检和定时任务也在这里执行",
       "homeFolderPlaceholder": "未设置（每次手动选择）",
       "homeFolderClear": "清除",
-      "homeFolderBrowse": "选择文件夹"
+      "homeFolderBrowse": "选择文件夹",
+      "contextFilesTitle": "工作区说明注入",
+      "contextFilesDesc": "把当前工作台项目里的 AGENTS.md / CLAUDE.md 注入到新建会话的系统提示词中，位置在记忆之前。",
+      "injectAgentsMd": "注入 AGENTS.md",
+      "injectAgentsMdDesc": "开启后，新会话会读取当前工作目录到 Git 根目录之间的 AGENTS.md。",
+      "injectClaudeMd": "注入 CLAUDE.md",
+      "injectClaudeMdDesc": "开启后，新会话会读取当前工作目录到 Git 根目录之间的 CLAUDE.md。"
     },
     "toolCaps": {
       "title": "技能安装权限"
