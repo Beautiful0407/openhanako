@@ -41,7 +41,9 @@ describe('ws-message-handler desktop notification', () => {
       agentId: 'a2',
     });
 
-    expect(showNotification).toHaveBeenCalledWith('提醒', '该喝水了', 'a2');
+    expect(showNotification).toHaveBeenCalledWith('提醒', '该喝水了', 'a2', {
+      desktopFocusPolicy: 'always',
+    });
   });
 
   it('agentId 缺失时透传 null，不从全局焦点兜底', () => {
@@ -55,6 +57,25 @@ describe('ws-message-handler desktop notification', () => {
       agentId: null,
     });
 
-    expect(showNotification).toHaveBeenCalledWith('提醒', '正文', null);
+    expect(showNotification).toHaveBeenCalledWith('提醒', '正文', null, {
+      desktopFocusPolicy: 'always',
+    });
+  });
+
+  it('把 when_unfocused 策略透传给主进程，由桌面边界判断是否弹出', () => {
+    const showNotification = vi.fn();
+    (window as unknown as { hana: { showNotification: typeof showNotification } }).hana = { showNotification };
+
+    handleServerMessage({
+      type: 'notification',
+      title: '完成',
+      body: '这一轮已经结束',
+      agentId: 'a2',
+      desktopFocusPolicy: 'when_unfocused',
+    });
+
+    expect(showNotification).toHaveBeenCalledWith('完成', '这一轮已经结束', 'a2', {
+      desktopFocusPolicy: 'when_unfocused',
+    });
   });
 });

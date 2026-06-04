@@ -692,6 +692,7 @@
     "autoSaved": "已自動儲存 ✿",
     "tabs": {
       "interface": "介面",
+      "general": "通用",
       "agent": "助手",
       "me": "我",
       "providers": "供應商",
@@ -707,6 +708,20 @@
       "plugins": "插件",
       "about": "關於",
       "security": "安全"
+    },
+    "general": {
+      "title": "通用",
+      "startup": {
+        "title": "啟動與背景"
+      },
+      "launchAtLogin": "開機自啟",
+      "keepAwake": "鎖定時保持執行",
+      "notifications": {
+        "title": "通知",
+        "turnCompletion": "輪次完成通知",
+        "turnCompletionNever": "從不",
+        "turnCompletionWhenUnfocused": "焦點不在 HanaAgent 時"
+      }
     },
     "computerUse": {
       "title": "電腦控制",
@@ -1926,6 +1941,9 @@
     "goToSettings": "前往設定",
     "resetContext": "重啟上下文",
     "resetContextTip": "下次訊息將開啟新對話"
+  },
+  "notification": {
+    "turnCompletionBody": "這一輪已經完成"
   },
   "error": {
     "pathsRequired": "需要 paths 陣列",

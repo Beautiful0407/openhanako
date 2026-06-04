@@ -692,6 +692,7 @@
     "autoSaved": "자동 저장됨 ✿",
     "tabs": {
       "interface": "인터페이스",
+      "general": "일반",
       "agent": "에이전트",
       "me": "나",
       "providers": "제공자",
@@ -707,6 +708,20 @@
       "plugins": "플러그인",
       "about": "소개",
       "security": "보안"
+    },
+    "general": {
+      "title": "일반",
+      "startup": {
+        "title": "시작 및 백그라운드"
+      },
+      "launchAtLogin": "로그인 시 자동 실행",
+      "keepAwake": "잠금 중에도 계속 실행",
+      "notifications": {
+        "title": "알림",
+        "turnCompletion": "턴 완료 알림",
+        "turnCompletionNever": "사용 안 함",
+        "turnCompletionWhenUnfocused": "HanaAgent에 포커스가 없을 때"
+      }
     },
     "computerUse": {
       "title": "Computer Use",
@@ -1934,6 +1949,9 @@
     "goToSettings": "설정으로 이동",
     "resetContext": "컨텍스트 리셋",
     "resetContextTip": "다음 메시지부터 새 대화가 시작돼요"
+  },
+  "notification": {
+    "turnCompletionBody": "이번 턴이 완료됐어요"
   },
   "error": {
     "pathsRequired": "paths 배열이 필요해요",

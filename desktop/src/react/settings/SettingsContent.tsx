@@ -17,6 +17,7 @@ import { Toast } from './Toast';
 import { AgentTab } from './tabs/AgentTab';
 import { MeTab } from './tabs/MeTab';
 import { InterfaceTab } from './tabs/InterfaceTab';
+import { GeneralTab } from './tabs/GeneralTab';
 import { WorkTab } from './tabs/WorkTab';
 import { SkillsTab } from './tabs/SkillsTab';
 import { BridgeTab } from './tabs/BridgeTab';
@@ -45,6 +46,7 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   agent: AgentTab,
   me: MeTab,
   interface: InterfaceTab,
+  general: GeneralTab,
   work: WorkTab,
   skills: SkillsTab,
   bridge: BridgeTab,
@@ -81,6 +83,7 @@ const TAB_TITLES: Record<string, string> = {
   agent: '助手',
   me: '我',
   interface: '界面',
+  general: '通用',
   work: '工作台',
   workflow: 'Workflow',
   skills: '技能',

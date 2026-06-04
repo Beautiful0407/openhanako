@@ -692,6 +692,7 @@
     "autoSaved": "Auto-saved ✿",
     "tabs": {
       "interface": "Interface",
+      "general": "General",
       "agent": "Agent",
       "me": "Me",
       "providers": "Providers",
@@ -909,6 +910,20 @@
           "update_settings": { "label": "Update Settings", "summary": "Allow the agent to modify application configuration" },
           "workflow": { "label": "Workflow", "summary": "Let the agent orchestrate multi-agent workflow scripts as background tasks" }
         }
+      }
+    },
+    "general": {
+      "title": "General",
+      "startup": {
+        "title": "Startup & Background"
+      },
+      "launchAtLogin": "Launch at login",
+      "keepAwake": "Keep running while locked",
+      "notifications": {
+        "title": "Notifications",
+        "turnCompletion": "Turn completion notification",
+        "turnCompletionNever": "Never",
+        "turnCompletionWhenUnfocused": "When HanaAgent is unfocused"
       }
     },
     "about": {
@@ -1975,6 +1990,9 @@
     "goToSettings": "Go to Settings",
     "resetContext": "Reset context",
     "resetContextTip": "Next message will start a new conversation"
+  },
+  "notification": {
+    "turnCompletionBody": "This turn is complete"
   },
   "error": {
     "pathsRequired": "paths array is required",

@@ -28,6 +28,10 @@ import {
 } from "../shared/sidebar-ui-state.js";
 import { normalizeWorkspacePath } from "../shared/workspace-history.js";
 import { normalizeNetworkProxyConfig } from "../shared/network-proxy.js";
+import {
+  mergeNotificationPreferences,
+  normalizeNotificationPreferences,
+} from "../shared/notification-preferences.js";
 import { createModuleLogger } from "../lib/debug-log.js";
 import { normalizeSessionThinkingLevel } from "./session-thinking-level.js";
 
@@ -372,6 +376,19 @@ export class PreferencesManager {
     });
     this.savePreferences(prefs);
     return prefs.appearance;
+  }
+
+  /** 读取跨前端同步的通知偏好。 */
+  getNotificationPreferences() {
+    return normalizeNotificationPreferences(this._cache.notifications || {});
+  }
+
+  /** 合并写入跨前端同步的通知偏好。 */
+  setNotificationPreferences(partial) {
+    const prefs = this._mutableCopy();
+    prefs.notifications = mergeNotificationPreferences(prefs.notifications || {}, partial || {});
+    this.savePreferences(prefs);
+    return prefs.notifications;
   }
 
   /** 读取指定工作区的 UI 状态（文件夹展开、预览 tabs 等）。 */

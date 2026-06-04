@@ -34,6 +34,10 @@ const {
 } = require("./src/shared/onboarding-completion.cjs");
 const { resolveTrashItemPath } = require("./src/shared/trash-item-path.cjs");
 const { resolveAgentAvatarPath } = require("./src/shared/agent-avatar-path.cjs");
+const {
+  normalizeDesktopNotificationOptions,
+  shouldSuppressDesktopNotification,
+} = require("./src/shared/desktop-notification-policy.cjs");
 const { redactLogText } = require("../shared/log-redactor.cjs");
 const {
   configureClientSingleInstance,
@@ -3735,8 +3739,12 @@ wrapIpcBestEffortHandler("reload-main-window", () => {
 // agentId 标识触发的助手；据此读取该 agent 头像作为通知 icon，让多 agent 并发通知可分辨身份。
 // agentId 缺失或头像不存在时退回无 icon，禁止用当前焦点 agent 兜底（会张冠李戴）。
 // Windows 自定义 icon 依赖 AppUserModelID 已注册（见上方 app.setAppUserModelId），已满足；三平台同一套逻辑。
-wrapIpcBestEffortHandler("show-notification", (_event, title, body, agentId) => {
-  if (!Notification.isSupported()) return;
+wrapIpcBestEffortHandler("show-notification", (_event, title, body, agentId, rawOptions) => {
+  const notificationOptions = normalizeDesktopNotificationOptions(rawOptions);
+  if (shouldSuppressDesktopNotification(notificationOptions, { getFocusedWindow: () => BrowserWindow.getFocusedWindow() })) {
+    return { shown: false, reason: "hana_focused" };
+  }
+  if (!Notification.isSupported()) return { shown: false, reason: "unsupported" };
   /** @type {Electron.NotificationConstructorOptions} */
   const options = {
     title: title || "Hana",
@@ -3758,6 +3766,7 @@ wrapIpcBestEffortHandler("show-notification", (_event, title, body, agentId) => 
     }
   });
   notif.show();
+  return { shown: true };
 });
 
 // Debug: 打开 Onboarding 窗口（DevTools 用）

@@ -692,6 +692,7 @@
     "autoSaved": "自動保存しました ✿",
     "tabs": {
       "interface": "インターフェース",
+      "general": "一般",
       "agent": "エージェント",
       "me": "自分",
       "providers": "プロバイダー",
@@ -707,6 +708,20 @@
       "plugins": "プラグイン",
       "about": "概要",
       "security": "セキュリティ"
+    },
+    "general": {
+      "title": "一般",
+      "startup": {
+        "title": "起動とバックグラウンド"
+      },
+      "launchAtLogin": "ログイン時に起動",
+      "keepAwake": "ロック中も実行を継続",
+      "notifications": {
+        "title": "通知",
+        "turnCompletion": "ターン完了通知",
+        "turnCompletionNever": "通知しない",
+        "turnCompletionWhenUnfocused": "HanaAgent にフォーカスがないとき"
+      }
     },
     "computerUse": {
       "title": "Computer Use",
@@ -1934,6 +1949,9 @@
     "goToSettings": "設定へ",
     "resetContext": "コンテキストをリセット",
     "resetContextTip": "次のメッセージから新しい会話が始まります"
+  },
+  "notification": {
+    "turnCompletionBody": "このターンは完了しました"
   },
   "error": {
     "pathsRequired": "paths 配列は必須です",

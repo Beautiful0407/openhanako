@@ -64,6 +64,7 @@ vi.mock('../../components/InputContextMenu', () => ({ InputContextMenu: () => nu
 vi.mock('../../settings/tabs/AgentTab', () => ({ AgentTab: () => <div data-testid="active-tab">agent tab</div> }));
 vi.mock('../../settings/tabs/MeTab', () => ({ MeTab: () => <div data-testid="active-tab">me tab</div> }));
 vi.mock('../../settings/tabs/InterfaceTab', () => ({ InterfaceTab: () => <div data-testid="active-tab">interface tab</div> }));
+vi.mock('../../settings/tabs/GeneralTab', () => ({ GeneralTab: () => <div data-testid="active-tab">general tab</div> }));
 vi.mock('../../settings/tabs/WorkTab', () => ({ WorkTab: () => <div data-testid="active-tab">work tab</div> }));
 vi.mock('../../settings/tabs/SkillsTab', () => ({ SkillsTab: () => <div data-testid="active-tab">skills tab</div> }));
 vi.mock('../../settings/tabs/BridgeTab', () => ({ BridgeTab: () => <div data-testid="active-tab">bridge tab</div> }));

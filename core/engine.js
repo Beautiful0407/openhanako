@@ -337,8 +337,14 @@ export class HanaEngine {
       getUsageLedger: () => this._usageLedger,
     });
     this._notifications = new NotificationService({
-      emitDesktop: ({ title, body, agentId }) => {
-        this._hubCallbacks?.eventBus?.emit({ type: "notification", title, body, agentId: agentId || null }, null);
+      emitDesktop: ({ title, body, agentId, desktopFocusPolicy }) => {
+        this._hubCallbacks?.eventBus?.emit({
+          type: "notification",
+          title,
+          body,
+          agentId: agentId || null,
+          desktopFocusPolicy,
+        }, null);
       },
       getBridgeManager: () => this._hubCallbacks?.hub?.bridgeManager || null,
     });
@@ -1011,6 +1017,8 @@ export class HanaEngine {
   setEditor(p) { return this._prefs.setEditor(p); }
   getAppearance() { return this._prefs.getAppearance(); }
   setAppearance(p) { return this._prefs.setAppearance(p); }
+  getNotificationPreferences() { return this._prefs.getNotificationPreferences(); }
+  setNotificationPreferences(p) { return this._prefs.setNotificationPreferences(p); }
   getWorkspaceUiState(workspaceRoot, surface) { return this._prefs.getWorkspaceUiState(workspaceRoot, surface); }
   setWorkspaceUiState(workspaceRoot, surface, state) { return this._prefs.setWorkspaceUiState(workspaceRoot, surface, state); }
   gcWorkspacePersistence(options = {}) {

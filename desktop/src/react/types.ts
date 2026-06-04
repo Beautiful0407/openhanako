@@ -30,6 +30,12 @@ export interface KeepAwakeStatus {
   type: 'prevent-app-suspension';
 }
 
+export type DesktopNotificationFocusPolicy = 'always' | 'when_unfocused';
+
+export interface DesktopNotificationOptions {
+  desktopFocusPolicy?: DesktopNotificationFocusPolicy;
+}
+
 // ── 核心数据结构 ──
 
 export type SessionPermissionMode = 'auto' | 'operate' | 'ask' | 'read_only';
@@ -373,7 +379,7 @@ export interface PlatformApi {
   onboardingComplete?(): Promise<void>;
 
   // ── Notification ──
-  showNotification?(title: string, body: string, agentId?: string | null): void;
+  showNotification?(title: string, body: string, agentId?: string | null, options?: DesktopNotificationOptions): void;
 
   // ── App info ──
   getAppVersion?(): Promise<string>;

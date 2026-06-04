@@ -149,6 +149,7 @@ export function toNotificationWsMessage(event) {
     // 携带触发 agent 的 agentId，展示侧据此显示对应助手头像（多 agent 并发定时任务可分辨身份）。
     // 缺失时归一化为 null，由消费侧退回无 icon 行为，禁止从全局焦点兜底。
     agentId: event.agentId ?? null,
+    desktopFocusPolicy: event.desktopFocusPolicy === "when_unfocused" ? "when_unfocused" : "always",
   };
 }
 
@@ -443,6 +444,50 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       ss.titleRequested = false;
       log.error(`generateSessionTitle error: ${err.message}`);
     });
+  }
+
+  function resolveSessionNotificationIdentity(sessionPath) {
+    const session = engine.getSessionByPath?.(sessionPath) || null;
+    const agent = session?.agent || null;
+    const agentId = typeof session?.agentId === "string" && session.agentId
+      ? session.agentId
+      : typeof agent?.id === "string" && agent.id
+        ? agent.id
+        : null;
+    const agentName = typeof session?.agentName === "string" && session.agentName
+      ? session.agentName
+      : typeof agent?.agentName === "string" && agent.agentName
+        ? agent.agentName
+        : typeof agent?.name === "string" && agent.name
+          ? agent.name
+          : null;
+    return { agentId, agentName };
+  }
+
+  function maybeDeliverTurnCompletionNotification(sessionPath, { wasAborted, wasSuccessful, streamId }) {
+    if (!sessionPath || wasAborted || !wasSuccessful) return;
+    try {
+      const prefs = engine.getNotificationPreferences?.();
+      if (prefs?.turnCompletion !== "when_unfocused") return;
+      if (typeof engine.deliverNotification !== "function") return;
+
+      const { agentId, agentName } = resolveSessionNotificationIdentity(sessionPath);
+      const idempotencyKey = streamId ? `turn-completion:${sessionPath}:${streamId}` : null;
+      const delivery = engine.deliverNotification({
+        title: agentName || "HanaAgent",
+        body: t("notification.turnCompletionBody"),
+        channels: ["desktop"],
+        desktopFocusPolicy: "when_unfocused",
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      }, {
+        agentId,
+      });
+      delivery?.catch?.((err) => {
+        log.warn(`turn completion notification failed: ${err.message}`);
+      });
+    } catch (err) {
+      log.warn(`turn completion notification skipped: ${err.message}`);
+    }
   }
 
   // 单订阅：事件只写入一次，再按需广播到所有连接中的客户端。
@@ -813,6 +858,8 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       }
     } else if (event.type === "turn_end") {
       if (!ss) return;
+      const turnWasAborted = ss.isAborted === true;
+      const turnStreamId = ss.streamId || null;
       // 关闭结构化 thinking（如有）——必须在 flush 之前，否则前端收不到 thinking_end
       if (ss.isThinking) {
         ss.isThinking = false;
@@ -866,8 +913,10 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       // 空回复检测：本轮没有文本输出也没有工具调用，提示用户检查配置
       // 被 abort 的 turn 不弹此提示（用户主动停止 / WS 断开 / 连接超时）
       if (!ss.hasOutput && !ss.hasToolCall && !ss.hasThinking && !ss.hasError && !ss.isAborted) {
+        ss.hasError = true;
         broadcast({ type: "error", message: t("error.modelNoResponse"), sessionPath });
       }
+      const turnWasSuccessful = !turnWasAborted && !ss.hasError && (ss.hasOutput || ss.hasToolCall || ss.hasThinking);
 
       // ── token usage 事件（供插件监听做用量统计）──
       try {
@@ -895,6 +944,11 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       } catch (_) { /* 统计失败不阻塞主流程 */ }
 
       emitStreamEvent(sessionPath, ss, { type: "turn_end" });
+      maybeDeliverTurnCompletionNotification(sessionPath, {
+        wasAborted: turnWasAborted,
+        wasSuccessful: turnWasSuccessful,
+        streamId: turnStreamId,
+      });
       finishSessionStream(ss);
       ss.turnActive = false;
       ss.hasOutput = false;

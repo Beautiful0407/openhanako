@@ -8,40 +8,20 @@ import { SettingsRow } from '../components/SettingsRow';
 import { ExpandableRow } from '../components/ExpandableRow';
 import { AutoUpdateStatus } from '../../components/AutoUpdateStatus';
 import { useAutoUpdateState } from '../../hooks/use-auto-update-state';
-import type { AutoLaunchStatus } from '../../types';
 import appIconUrl from '../../../icon.png';
 import styles from '../Settings.module.css';
 
 export function AboutTab() {
   const hana = window.hana;
   const settingsConfig = useSettingsStore(s => s.settingsConfig);
-  const showToast = useSettingsStore(s => s.showToast);
   const [version, setVersion] = useState('');
-  const [autoLaunch, setAutoLaunch] = useState<AutoLaunchStatus | null>(null);
-  const [autoLaunchSaving, setAutoLaunchSaving] = useState(false);
-  const [keepAwakeSaving, setKeepAwakeSaving] = useState(false);
   const autoUpdate = useAutoUpdateState();
   const isBeta = settingsConfig?.update_channel === 'beta';
-  const keepAwake = settingsConfig?.keep_awake === true;
   // 默认 true：老用户（preferences 里没写这个字段）保持原有"自动检查"行为
   const autoCheck = settingsConfig?.auto_check_updates !== false;
 
   useEffect(() => {
     hana?.getAppVersion?.().then((v: string) => setVersion(v || ''));
-  }, [hana]);
-
-  useEffect(() => {
-    let alive = true;
-    hana?.getAutoLaunchStatus?.()
-      .then((status) => {
-        if (alive && status) setAutoLaunch(status);
-      })
-      .catch(() => {
-        if (alive) setAutoLaunch(null);
-      });
-    return () => {
-      alive = false;
-    };
   }, [hana]);
 
   const handleCheck = useCallback(() => {
@@ -64,39 +44,6 @@ export function AboutTab() {
     await autoSaveConfig({ auto_check_updates: on }, { silent: true });
     await loadSettingsConfig();
   }, []);
-
-  const handleAutoLaunchToggle = useCallback(async (on: boolean) => {
-    if (!hana?.setAutoLaunchEnabled) return;
-    const previous = autoLaunch;
-    setAutoLaunchSaving(true);
-    try {
-      const next = await hana.setAutoLaunchEnabled(on);
-      setAutoLaunch(next || previous);
-    } catch {
-      setAutoLaunch(previous);
-    } finally {
-      setAutoLaunchSaving(false);
-    }
-  }, [autoLaunch, hana]);
-
-  const handleKeepAwakeToggle = useCallback(async (on: boolean) => {
-    if (!hana?.setKeepAwakeEnabled) return;
-    const previous = settingsConfig?.keep_awake === true;
-    setKeepAwakeSaving(true);
-    try {
-      const saved = await autoSaveConfig({ keep_awake: on }, { silent: true });
-      if (saved === false) return;
-      await hana.setKeepAwakeEnabled(on);
-    } catch (err: any) {
-      if (previous !== on) {
-        await autoSaveConfig({ keep_awake: previous }, { silent: true });
-        await loadSettingsConfig();
-      }
-      showToast(t('settings.saveFailed') + ': ' + (err?.message || String(err)), 'error');
-    } finally {
-      setKeepAwakeSaving(false);
-    }
-  }, [hana, settingsConfig?.keep_awake, showToast]);
 
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="about">
@@ -146,30 +93,6 @@ export function AboutTab() {
                 <line x1="10" y1="14" x2="21" y2="3" />
               </svg>
             </a>
-          }
-        />
-        {autoLaunch?.supported && (
-          <SettingsRow
-            label={t('settings.about.launchAtLogin')}
-            control={
-              <Toggle
-                on={autoLaunch.openAtLogin}
-                onChange={handleAutoLaunchToggle}
-                ariaLabel={t('settings.about.launchAtLogin')}
-                disabled={autoLaunchSaving}
-              />
-            }
-          />
-        )}
-        <SettingsRow
-          label={t('settings.about.keepAwake')}
-          control={
-            <Toggle
-              on={keepAwake}
-              onChange={handleKeepAwakeToggle}
-              ariaLabel={t('settings.about.keepAwake')}
-              disabled={keepAwakeSaving || !hana?.setKeepAwakeEnabled}
-            />
           }
         />
         <SettingsRow
