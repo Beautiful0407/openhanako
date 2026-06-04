@@ -439,6 +439,50 @@ describe('ws-message-handler session-scoped desktop events', () => {
   });
 });
 
+describe('ws-message-handler permission mode events', () => {
+  let windowTarget: EventTarget;
+
+  beforeEach(() => {
+    windowTarget = new EventTarget();
+    vi.stubGlobal('window', windowTarget);
+    useStore.setState({
+      currentSessionPath: '/session/a.jsonl',
+      pendingNewSession: false,
+    } as never);
+  });
+
+  it('keeps explicit auto mode from legacy plan_mode messages instead of collapsing to operate', () => {
+    const details: unknown[] = [];
+    windowTarget.addEventListener('hana-plan-mode', (event) => {
+      details.push((event as CustomEvent).detail);
+    });
+
+    handleServerMessage({
+      type: 'plan_mode',
+      sessionPath: '/session/a.jsonl',
+      enabled: false,
+      mode: 'auto',
+    });
+
+    expect(details).toEqual([{ enabled: false, mode: 'auto' }]);
+  });
+
+  it('syncs explicit permission_mode messages for the focused session', () => {
+    const details: unknown[] = [];
+    windowTarget.addEventListener('hana-plan-mode', (event) => {
+      details.push((event as CustomEvent).detail);
+    });
+
+    handleServerMessage({
+      type: 'permission_mode',
+      sessionPath: '/session/a.jsonl',
+      mode: 'ask',
+    });
+
+    expect(details).toEqual([{ enabled: false, mode: 'ask' }]);
+  });
+});
+
 describe('ws-message-handler background chat stream routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();

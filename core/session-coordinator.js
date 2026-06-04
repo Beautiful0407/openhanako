@@ -2042,10 +2042,12 @@ export class SessionCoordinator {
     const accessMode = legacyAccessModeFromPermissionMode(normalized);
     this._d.emitEvent({ type: "permission_mode", mode: normalized, readOnly }, sessionPath);
     this._d.emitEvent({ type: "access_mode", mode: accessMode, permissionMode: normalized, readOnly }, sessionPath);
-    this._d.emitEvent({ type: "plan_mode", enabled: readOnly }, sessionPath);
+    this._d.emitEvent({ type: "plan_mode", enabled: readOnly, mode: normalized }, sessionPath);
     const label = normalized === SESSION_PERMISSION_MODES.READ_ONLY
       ? "只读"
-      : (normalized === SESSION_PERMISSION_MODES.ASK ? "先问" : "操作");
+      : (normalized === SESSION_PERMISSION_MODES.ASK
+        ? "先问"
+        : (normalized === SESSION_PERMISSION_MODES.AUTO ? "自动审核" : "操作"));
     this._d.emitDevLog(`Permission Mode: ${label}`, "info");
   }
 

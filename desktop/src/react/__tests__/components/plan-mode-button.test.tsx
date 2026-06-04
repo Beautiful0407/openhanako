@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hanaFetch } from '../../hooks/use-hana-fetch';
 import { PlanModeButton } from '../../components/input/PlanModeButton';
 import { useStore } from '../../stores';
@@ -21,28 +21,30 @@ function jsonResponse(body: unknown): Response {
 }
 
 describe('PlanModeButton', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({ pendingNewSession: false } as never);
   });
 
   it('opens a menu and marks permission changes from the pending new-session surface explicitly', async () => {
-    vi.mocked(hanaFetch).mockResolvedValueOnce(jsonResponse({ mode: 'read_only' }));
+    vi.mocked(hanaFetch).mockResolvedValueOnce(jsonResponse({ mode: 'auto' }));
     useStore.setState({ pendingNewSession: true } as never);
     const onChange = vi.fn();
 
     render(<PlanModeButton mode="ask" onChange={onChange} />);
     fireEvent.click(screen.getByRole('button', { name: 'input.askMode' }));
     expect(hanaFetch).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'input.readOnlyMode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'input.autoMode' }));
 
     await waitFor(() => {
       expect(hanaFetch).toHaveBeenCalledWith('/api/session-permission-mode', expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ mode: 'read_only', pendingNewSession: true }),
+        body: JSON.stringify({ mode: 'auto', pendingNewSession: true }),
       }));
     });
-    expect(onChange).toHaveBeenCalledWith('read_only');
+    expect(onChange).toHaveBeenCalledWith('auto');
   });
 
   it('targets the active session when changing an existing conversation permission mode', async () => {
@@ -71,7 +73,10 @@ describe('PlanModeButton', () => {
   });
 
   it('uses a distinct trigger icon for each permission mode', () => {
-    const { container, rerender } = render(<PlanModeButton mode="ask" onChange={vi.fn()} />);
+    const { container, rerender } = render(<PlanModeButton mode="auto" onChange={vi.fn()} />);
+    expect(container.querySelector('svg[data-permission-mode="auto"]')).not.toBeNull();
+
+    rerender(<PlanModeButton mode="ask" onChange={vi.fn()} />);
     expect(container.querySelector('svg[data-permission-mode="ask"]')).not.toBeNull();
 
     rerender(<PlanModeButton mode="operate" onChange={vi.fn()} />);
@@ -81,16 +86,20 @@ describe('PlanModeButton', () => {
     expect(container.querySelector('svg[data-permission-mode="read_only"]')).not.toBeNull();
   });
 
-  it('keeps ask visually neutral, read-only accent, and operate danger colored', () => {
+  it('keeps ask neutral, auto blue, read-only accent, and operate danger colored', () => {
     const css = fs.readFileSync(
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),
       'utf8',
     );
     const askBlock = css.match(/\.plan-mode-ask\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    const autoBlock = css.match(/\.plan-mode-auto\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const operateBlock = css.match(/\.plan-mode-operate\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const readOnlyBlock = css.match(/\.plan-mode-read_only\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
 
     expect(askBlock).not.toMatch(/color\s*:|background\s*:|border-color\s*:/);
+    expect(autoBlock).toContain('var(--permission-auto');
+    expect(autoBlock).not.toContain('var(--danger');
+    expect(autoBlock).not.toContain('var(--accent');
     expect(operateBlock).toContain('var(--danger');
     expect(readOnlyBlock).toContain('var(--accent');
     expect(readOnlyBlock).not.toContain('var(--danger');

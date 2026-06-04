@@ -529,12 +529,12 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
   try {
     const res = await hanaFetch('/api/session-permission-mode');
     const data = await res.json();
-    const mode = data.defaultMode || data.mode || 'ask';
+    const mode = data.defaultMode || data.mode || 'auto';
     window.dispatchEvent(new CustomEvent('hana-plan-mode', {
       detail: { enabled: mode === 'read_only', mode },
     }));
   } catch {
-    window.dispatchEvent(new CustomEvent('hana-plan-mode', { detail: { enabled: false, mode: 'ask' } }));
+    window.dispatchEvent(new CustomEvent('hana-plan-mode', { detail: { enabled: false, mode: 'auto' } }));
   }
 
   // pending 状态下刷新 model 列表，让 ModelSelector 显示 agent Chat 默认 model

@@ -36,6 +36,8 @@ import { compactSessionWithCachePreservation, isStaleExtensionContextError } fro
 import { DeferredResultCoordinator } from "../lib/deferred-result-coordinator.js";
 import { getToolSessionPath, normalizeToolRuntimeContext } from "../lib/tools/tool-session.js";
 import { loadLocale } from "../server/i18n.js";
+import { createApprovalGateway, createModelApprovalReviewer } from "../lib/approval-gateway.js";
+import { callText } from "./llm-client.js";
 
 /** 已知的外部 AI 工具技能目录（相对 $HOME） */
 export const WELL_KNOWN_SKILL_PATHS = [
@@ -191,6 +193,18 @@ export class HanaEngine {
       managedCacheRoot: path.join(hanakoHome, "session-files"),
     });
     this._pluginInstallRecords = new PluginInstallRecords({ hanakoHome });
+    this._approvalGateway = createApprovalGateway({
+      smallToolModelReviewer: createModelApprovalReviewer({
+        role: "utility",
+        resolveUtilityConfig: (options) => this.resolveUtilityConfig(options || {}),
+        callText: (options) => this._callApprovalReviewerText(options),
+      }),
+      largeToolModelReviewer: createModelApprovalReviewer({
+        role: "utility_large",
+        resolveUtilityConfig: (options) => this.resolveUtilityConfig(options || {}),
+        callText: (options) => this._callApprovalReviewerText(options),
+      }),
+    });
 
     // ── Core managers ──
     this._prefs = new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir });
@@ -417,6 +431,7 @@ export class HanaEngine {
   /** @ui-focus-only 返回 UI 焦点 agent 的 ID */
   get currentAgentId() { return this._agentMgr.activeAgentId; }
   get confirmStore() { return this._confirmStore; }
+  get approvalGateway() { return this._approvalGateway; }
   getStudioCronStore() { return this._studioCronService; }
 
   /** @deprecated 工具应通过 emitEvent(event, sessionPath) 传入显式 sessionPath */
@@ -900,14 +915,20 @@ export class HanaEngine {
   getUtilityApi() { return this._configCoord.getUtilityApi(); }
   setUtilityApi(p) { return this._configCoord.setUtilityApi(p); }
   resolveUtilityConfig(options = {}) {
-    const config = this._configCoord.resolveUtilityConfig(options);
+    const resolvedOptions = { ...(options || {}) };
+    if (!resolvedOptions.agentId && resolvedOptions.sessionPath) {
+      const ownerAgentId = this.agentIdFromSessionPath(resolvedOptions.sessionPath);
+      if (ownerAgentId) resolvedOptions.agentId = ownerAgentId;
+    }
+    const config = this._configCoord.resolveUtilityConfig(resolvedOptions);
     return {
       ...config,
       usageLedger: this._usageLedger,
-      usageAgentId: options?.agentId || this.currentAgentId || null,
-      usageSessionPath: options?.sessionPath || null,
+      usageAgentId: resolvedOptions.agentId || this.currentAgentId || null,
+      usageSessionPath: resolvedOptions.sessionPath || null,
     };
   }
+  _callApprovalReviewerText(options) { return callText(options); }
   resolveUtilityConfigForAgent(agentId) { return this.resolveUtilityConfig({ agentId }); }
   readAgentOrder() { return this._configCoord.readAgentOrder(); }
   saveAgentOrder(o) { return this._configCoord.saveAgentOrder(o); }
@@ -1756,6 +1777,7 @@ export class HanaEngine {
         getPermissionMode,
         permissionContext,
         getConfirmStore: () => this._confirmStore,
+        getApprovalGateway: () => this._approvalGateway,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       }),
       customTools: wrapWithSessionPermission(result.customTools, {
@@ -1763,6 +1785,7 @@ export class HanaEngine {
         getPermissionMode,
         permissionContext,
         getConfirmStore: () => this._confirmStore,
+        getApprovalGateway: () => this._approvalGateway,
         emitEvent: (event, sessionPath) => this._emitEvent(event, sessionPath),
       }),
     };

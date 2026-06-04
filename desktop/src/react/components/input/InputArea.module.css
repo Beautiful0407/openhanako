@@ -117,6 +117,12 @@
     border-color: var(--mood-border);
 }
 
+.plan-mode-auto {
+    color: var(--permission-auto);
+    border-color: var(--permission-auto-border);
+    background: var(--permission-auto-bg);
+}
+
 .plan-mode-operate {
     color: var(--danger, #c55);
     border-color: color-mix(in srgb, var(--danger, #c55) 34%, transparent);

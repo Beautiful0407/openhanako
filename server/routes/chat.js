@@ -755,8 +755,18 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
         sessionKey: event.sessionKey,
         sessionPath,
       });
+    } else if (event.type === "permission_mode") {
+      broadcast({ type: "permission_mode", mode: event.mode, readOnly: event.readOnly === true, sessionPath });
+    } else if (event.type === "access_mode") {
+      broadcast({
+        type: "access_mode",
+        mode: event.mode,
+        permissionMode: event.permissionMode,
+        readOnly: event.readOnly === true,
+        sessionPath,
+      });
     } else if (event.type === "plan_mode") {
-      broadcast({ type: "plan_mode", enabled: event.enabled, sessionPath });
+      broadcast({ type: "plan_mode", enabled: event.enabled, mode: event.mode, sessionPath });
     } else if (event.type === "notification") {
       broadcast(toNotificationWsMessage(event));
     } else if (event.type === "channel_new_message") {

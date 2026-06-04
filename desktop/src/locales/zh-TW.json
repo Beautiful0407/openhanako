@@ -274,6 +274,7 @@
     "addExternalFolder": "加入工作台以外的資料夾",
     "planMode": "權限模式",
     "accessMode": "會話權限模式",
+    "autoMode": "自動審核",
     "operateMode": "自動操作",
     "askMode": "操作前詢問",
     "readOnlyMode": "唯讀模式",

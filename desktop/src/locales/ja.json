@@ -274,6 +274,7 @@
     "addExternalFolder": "ワークスペース外のフォルダを追加",
     "planMode": "アクセスモード",
     "accessMode": "セッションのアクセスモード",
+    "autoMode": "自動承認",
     "operateMode": "自動操作",
     "askMode": "操作前に確認",
     "readOnlyMode": "読み取り専用モード",

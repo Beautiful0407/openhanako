@@ -4,17 +4,25 @@ import { useI18n } from '../../hooks/use-i18n';
 import { useStore } from '../../stores';
 import styles from './InputArea.module.css';
 
-export type PermissionMode = 'operate' | 'ask' | 'read_only';
+export type PermissionMode = 'auto' | 'operate' | 'ask' | 'read_only';
 
-const PERMISSION_MODES: PermissionMode[] = ['operate', 'ask', 'read_only'];
+const PERMISSION_MODES: PermissionMode[] = ['auto', 'operate', 'ask', 'read_only'];
 
 function permissionModeLabelKey(mode: PermissionMode) {
+  if (mode === 'auto') return 'input.autoMode';
   if (mode === 'read_only') return 'input.readOnlyMode';
   if (mode === 'ask') return 'input.askMode';
   return 'input.operateMode';
 }
 
 function PermissionModeIcon({ mode }: { mode: PermissionMode }) {
+  if (mode === 'auto') {
+    return (
+      <svg data-permission-mode={mode} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3.5 19 6v5.4c0 4.1-2.7 7.5-7 9.1-4.3-1.6-7-5-7-9.1V6l7-2.5Z" />
+      </svg>
+    );
+  }
   if (mode === 'read_only') {
     return (
       <svg data-permission-mode={mode} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

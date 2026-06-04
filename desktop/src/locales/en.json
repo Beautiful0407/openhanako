@@ -274,6 +274,7 @@
     "addExternalFolder": "Add folder outside workspace",
     "planMode": "Access mode",
     "accessMode": "Session access mode",
+    "autoMode": "Auto approval",
     "operateMode": "Auto operation",
     "askMode": "Ask before acting",
     "readOnlyMode": "Read-only mode",

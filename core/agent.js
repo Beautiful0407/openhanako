@@ -421,6 +421,7 @@ export class Agent {
     this._sessionFoldersTool = createSessionFoldersTool({
       getEngine: () => this._cb?.getEngine?.(),
       getConfirmStore: () => this._cb?.getConfirmStore?.(),
+      getApprovalGateway: () => this._cb?.getApprovalGateway?.(),
       getSessionPath: () => this._cb?.getCurrentSessionPath?.(),
       emitEvent: (event, sp) => { if (sp) this._cb?.emitEvent?.(event, sp); },
     });
@@ -743,6 +744,8 @@ export class Agent {
         },
         getAgentId: () => this.id,
         getConfirmStore: () => this._cb?.getConfirmStore?.(),
+        getApprovalGateway: () => this._cb?.getApprovalGateway?.(),
+        getPermissionMode: (sessionPath) => this._cb?.getSessionPermissionMode?.(sessionPath),
         approveComputerUseApp: (approval) => this._cb?.getEngine?.()?.approveComputerUseApp?.(approval),
         emitEvent: (event, sp) => { if (sp) this._cb?.emitEvent?.(event, sp); },
         isAgentToolEnabled: () => this._isComputerUseAvailableForThisAgent(),

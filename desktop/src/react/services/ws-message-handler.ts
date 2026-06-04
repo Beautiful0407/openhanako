@@ -569,7 +569,7 @@ export function handleServerMessage(msg: any): void {
       const sp = msg.sessionPath;
       if (!sp || sp === useStore.getState().currentSessionPath) {
         window.dispatchEvent(new CustomEvent('hana-plan-mode', {
-          detail: { enabled: !!msg.enabled, mode: msg.enabled ? 'read_only' : 'operate' },
+          detail: { enabled: !!msg.enabled, mode: msg.mode || (msg.enabled ? 'read_only' : 'operate') },
         }));
       }
       break;

@@ -274,6 +274,7 @@
     "addExternalFolder": "작업 공간 외부 폴더 추가",
     "planMode": "접근 모드",
     "accessMode": "세션 접근 모드",
+    "autoMode": "자동 승인",
     "operateMode": "자동 작업",
     "askMode": "작업 전 묻기",
     "readOnlyMode": "읽기 전용 모드",
