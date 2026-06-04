@@ -275,7 +275,7 @@
     "planMode": "アクセスモード",
     "accessMode": "セッションのアクセスモード",
     "autoMode": "自動承認",
-    "operateMode": "自動操作",
+    "operateMode": "フルアクセス",
     "askMode": "操作前に確認",
     "readOnlyMode": "読み取り専用モード",
     "accessModeLocked": "現在アクセスモードを変更できません",

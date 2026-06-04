@@ -6,7 +6,7 @@ import {
 
 describe("session permission modes", () => {
   it("normalizes missing and legacy fields", () => {
-    expect(normalizeSessionPermissionMode({})).toBe("auto");
+    expect(normalizeSessionPermissionMode({})).toBe("ask");
     expect(normalizeSessionPermissionMode({ permissionMode: "auto" })).toBe("auto");
     expect(normalizeSessionPermissionMode({ accessMode: "operate" })).toBe("operate");
     expect(normalizeSessionPermissionMode({ accessMode: "read_only" })).toBe("read_only");

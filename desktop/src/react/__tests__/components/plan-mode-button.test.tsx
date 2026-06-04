@@ -86,6 +86,18 @@ describe('PlanModeButton', () => {
     expect(container.querySelector('svg[data-permission-mode="read_only"]')).not.toBeNull();
   });
 
+  it('renders an icon for every open permission menu option', () => {
+    const { container } = render(<PlanModeButton mode="ask" onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'input.askMode' }));
+
+    const dropdown = container.querySelector('[class*="plan-mode-dropdown"]');
+    expect(dropdown?.querySelector('svg[data-permission-mode="auto"]')).not.toBeNull();
+    expect(dropdown?.querySelector('svg[data-permission-mode="operate"]')).not.toBeNull();
+    expect(dropdown?.querySelector('svg[data-permission-mode="ask"]')).not.toBeNull();
+    expect(dropdown?.querySelector('svg[data-permission-mode="read_only"]')).not.toBeNull();
+  });
+
   it('keeps ask neutral, auto blue, read-only accent, and operate danger colored', () => {
     const css = fs.readFileSync(
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),
@@ -95,6 +107,10 @@ describe('PlanModeButton', () => {
     const autoBlock = css.match(/\.plan-mode-auto\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const operateBlock = css.match(/\.plan-mode-operate\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const readOnlyBlock = css.match(/\.plan-mode-read_only\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    const optionAutoBlock = css.match(/\.plan-mode-option-auto\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    const optionOperateBlock = css.match(/\.plan-mode-option-operate\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    const optionAskBlock = css.match(/\.plan-mode-option-ask\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    const optionReadOnlyBlock = css.match(/\.plan-mode-option-read_only\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
 
     expect(askBlock).not.toMatch(/color\s*:|background\s*:|border-color\s*:/);
     expect(autoBlock).toContain('var(--permission-auto');
@@ -103,5 +119,9 @@ describe('PlanModeButton', () => {
     expect(operateBlock).toContain('var(--danger');
     expect(readOnlyBlock).toContain('var(--accent');
     expect(readOnlyBlock).not.toContain('var(--danger');
+    expect(optionAutoBlock).toContain('var(--permission-auto');
+    expect(optionOperateBlock).toContain('var(--danger');
+    expect(optionAskBlock).toContain('var(--text');
+    expect(optionReadOnlyBlock).toContain('var(--accent');
   });
 });

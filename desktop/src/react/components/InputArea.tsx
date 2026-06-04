@@ -324,7 +324,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   }, [currentSessionItems]);
 
   // Local state
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('auto');
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask');
   const [sending, setSending] = useState(false);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelected, setSlashSelected] = useState(0);

@@ -275,7 +275,7 @@
     "planMode": "Access mode",
     "accessMode": "Session access mode",
     "autoMode": "Auto approval",
-    "operateMode": "Auto operation",
+    "operateMode": "Full access",
     "askMode": "Ask before acting",
     "readOnlyMode": "Read-only mode",
     "accessModeLocked": "Access mode cannot be changed right now",

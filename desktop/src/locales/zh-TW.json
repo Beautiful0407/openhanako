@@ -275,7 +275,7 @@
     "planMode": "權限模式",
     "accessMode": "會話權限模式",
     "autoMode": "自動審核",
-    "operateMode": "自動操作",
+    "operateMode": "完整權限",
     "askMode": "操作前詢問",
     "readOnlyMode": "唯讀模式",
     "accessModeLocked": "目前無法更改權限模式",

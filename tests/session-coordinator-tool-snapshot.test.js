@@ -89,7 +89,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
     activeToolsSpy = vi.fn();
     defaultModeSaveSpy = vi.fn();
-    storedDefaultMode = "auto";
+    storedDefaultMode = "ask";
     storedThinkingLevel = "auto";
     lastSessionOptions = null;
     fakeEngine = {
@@ -184,20 +184,20 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(meta[path.basename(sessionPath)].accessMode).toBe("operate");
   });
 
-  it("starts fresh sessions in auto even when an old persisted default says operate", async () => {
+  it("starts fresh sessions in ask even when an old persisted default says operate", async () => {
     storedDefaultMode = "operate";
     currentAgentConfig = { tools: { disabled: [] } };
 
     const { sessionPath } = await coord.createSession(null, tmpDir, true);
 
-    expect(coord.getPermissionModeDefault()).toBe("auto");
-    expect(coord.getPermissionMode(sessionPath)).toBe("auto");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
+    expect(coord.getPermissionMode(sessionPath)).toBe("ask");
     expect(coord.getAccessMode(sessionPath)).toBe("operate");
     expect(defaultModeSaveSpy).not.toHaveBeenCalled();
 
     const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
     expect(meta[path.basename(sessionPath)]).toMatchObject({
-      permissionMode: "auto",
+      permissionMode: "ask",
       accessMode: "operate",
       planMode: false,
     });
@@ -233,7 +233,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     const result = coord.setPendingPermissionMode("read_only");
 
     expect(result).toMatchObject({ ok: true, mode: "read_only", enabled: true });
-    expect(coord.getPermissionMode(activePath)).toBe("auto");
+    expect(coord.getPermissionMode(activePath)).toBe("ask");
     expect(coord.getPermissionModeDefault()).toBe("read_only");
 
     const secondSessionPath = path.join(sessionDir, "pending-read-only.jsonl");
@@ -274,9 +274,9 @@ describe("session-coordinator tool snapshot (createSession)", () => {
 
     expect(result).toMatchObject({ ok: true, mode: "operate", enabled: false });
     expect(coord.getPermissionMode(firstPath)).toBe("operate");
-    expect(coord.getPermissionModeDefault()).toBe("auto");
+    expect(coord.getPermissionModeDefault()).toBe("ask");
 
-    const secondSessionPath = path.join(sessionDir, "second-auto-session.jsonl");
+    const secondSessionPath = path.join(sessionDir, "second-ask-session.jsonl");
     createAgentSessionMock.mockResolvedValueOnce({
       session: {
         sessionManager: { getSessionFile: () => secondSessionPath },
@@ -287,7 +287,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     });
     const { sessionPath: secondPath } = await coord.createSession(null, tmpDir, true);
 
-    expect(coord.getPermissionMode(secondPath)).toBe("auto");
+    expect(coord.getPermissionMode(secondPath)).toBe("ask");
     expect(defaultModeSaveSpy).not.toHaveBeenCalled();
 
     const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
@@ -297,7 +297,7 @@ describe("session-coordinator tool snapshot (createSession)", () => {
       planMode: false,
     });
     expect(meta[path.basename(secondPath)]).toMatchObject({
-      permissionMode: "auto",
+      permissionMode: "ask",
       accessMode: "operate",
       planMode: false,
     });

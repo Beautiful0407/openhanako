@@ -113,9 +113,10 @@ export function PlanModeButton({ mode, onChange, locked = false }: {
           {PERMISSION_MODES.map((permissionMode) => (
             <button
               key={permissionMode}
-              className={`${styles['thinking-option']}${permissionMode === mode ? ` ${styles.active}` : ''}`}
+              className={`${styles['thinking-option']} ${styles['plan-mode-option']} ${styles[`plan-mode-option-${permissionMode}`] || ''}${permissionMode === mode ? ` ${styles.active}` : ''}`}
               onClick={() => selectMode(permissionMode)}
             >
+              <PermissionModeIcon mode={permissionMode} />
               <span>{t(permissionModeLabelKey(permissionMode))}</span>
             </button>
           ))}
