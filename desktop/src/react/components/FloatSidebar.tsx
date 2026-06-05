@@ -131,7 +131,7 @@ function LeftPanel({ onAction }: { onAction: () => void }) {
 function RightPanel() {
   return (
     <RegionalErrorBoundary region="float-sidebar-right">
-      <RightWorkspacePanel />
+      <RightWorkspacePanel compact />
     </RegionalErrorBoundary>
   );
 }

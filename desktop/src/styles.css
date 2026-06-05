@@ -11,6 +11,11 @@
     --space-md: 1rem;
     --space-lg: 1.5rem;
     --space-xl: 2.5rem;
+    --panel-edge-gap: var(--space-sm);
+    --panel-card-bg: var(--bg-card, var(--bg));
+    --panel-card-radius: var(--radius-lg);
+    --panel-card-border: 1px solid rgba(0, 0, 0, 0.08);
+    --panel-card-shadow: none;
 
     /* 对话列宽 */
     --chat-column-width: 45rem;
@@ -362,7 +367,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .float-sidebar[data-side="right"] {
     right: 0;
     bottom: 0;
-    padding: 0 var(--space-sm) 0 var(--space-sm);
+    padding: 0 var(--panel-edge-gap);
     transform: translateX(100%);
 }
 
@@ -430,6 +435,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .float-sidebar-panel-right {
     width: var(--jian-sidebar-width, 260px);
     background: var(--bg);
+    overflow: hidden;
 }
 
 /* ── 左侧面板内部：覆盖 sidebar 原有样式 ── */
@@ -2146,15 +2152,16 @@ html[data-platform="linux"] .tb-toggle-right {
     min-width: var(--jian-sidebar-width);
     height: 100%;
     overflow: hidden;
-    padding: 10px 7px 7px 0;
+    padding: 0 var(--panel-edge-gap) 0 0;
     box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
 }
 
 /* ── 卡片容器 ── */
 .jian-card {
-    background-color: var(--bg-card, var(--bg));
-    border-radius: var(--radius-lg);
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--panel-card-bg);
+    border-radius: var(--panel-card-radius);
+    border: var(--panel-card-border);
+    box-shadow: var(--panel-card-shadow);
     overflow: hidden;
 }
 

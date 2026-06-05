@@ -197,6 +197,37 @@ describe('RightWorkspacePanel', () => {
     expect(css).not.toMatch(/\.fileRowSelected \.fileActions\s*\{[\s\S]*opacity:\s*1/);
   });
 
+  it('keeps right workspace panel spacing on the shared panel gap contract', () => {
+    const panelCss = fs.readFileSync(
+      path.join(__dirname, '../../components/right-workspace/RightWorkspacePanel.module.css'),
+      'utf-8',
+    );
+    const globalCss = fs.readFileSync(
+      path.join(__dirname, '../../../styles.css'),
+      'utf-8',
+    );
+    const shellBlock = panelCss.match(/\.shell\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    const jianInnerBlock = globalCss.match(/\.jian-sidebar-inner\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    const floatRightBlock = globalCss.match(/\.float-sidebar\[data-side="right"\]\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    const rootBlock = globalCss.match(/:root\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    const jianCardBlock = globalCss.match(/\.jian-card\s*\{[\s\S]*?\}/)?.[0] ?? '';
+
+    expect(rootBlock).toMatch(/--panel-edge-gap:\s*var\(--space-sm\);/);
+    expect(rootBlock).toMatch(/--panel-card-bg:\s*var\(--bg-card,\s*var\(--bg\)\);/);
+    expect(rootBlock).toMatch(/--panel-card-radius:\s*var\(--radius-lg\);/);
+    expect(rootBlock).toMatch(/--panel-card-border:\s*1px solid rgba\(0,\s*0,\s*0,\s*0\.08\);/);
+    expect(rootBlock).toMatch(/--panel-card-shadow:\s*none;/);
+    expect(shellBlock).toMatch(/padding:\s*var\(--panel-edge-gap\) 0;/);
+    expect(shellBlock).toMatch(/gap:\s*var\(--panel-edge-gap\);/);
+    expect(panelCss).toMatch(/--right-workspace-jian-bottom:\s*var\(--panel-edge-gap\);/);
+    expect(jianInnerBlock).toMatch(/padding:\s*0 var\(--panel-edge-gap\) 0 0;/);
+    expect(floatRightBlock).toMatch(/padding:\s*0 var\(--panel-edge-gap\);/);
+    expect(jianCardBlock).toMatch(/background(?:-color)?:\s*var\(--panel-card-bg\);/);
+    expect(jianCardBlock).toMatch(/border-radius:\s*var\(--panel-card-radius\);/);
+    expect(jianCardBlock).toMatch(/border:\s*var\(--panel-card-border\);/);
+    expect(jianCardBlock).toMatch(/box-shadow:\s*var\(--panel-card-shadow\);/);
+  });
+
   it('places the preview toggle before the open-folder icon in the workspace toolbar', () => {
     render(<RightWorkspacePanel />);
 

@@ -204,7 +204,7 @@ body,
   }
 
   .mobile-desktop-root #previewPanel[data-preview-open="true"] [data-preview-body-shell] {
-    margin: var(--space-sm);
+    margin: var(--panel-edge-gap);
   }
 
   .mobile-desktop-root .main-content.welcome-mode .chat-area {
@@ -212,7 +212,7 @@ body,
   }
 
   .mobile-desktop-root .jian-sidebar-inner {
-    padding-right: 7px;
-    padding-left: 7px;
+    padding-right: var(--panel-edge-gap);
+    padding-left: var(--panel-edge-gap);
   }
 }

@@ -32,6 +32,23 @@ describe('Mobile PWA entry split', () => {
     expect(css).toMatch(/body\.font-sans\s*\{[\s\S]*--font-serif:\s*var\(--font-ui\)/);
   });
 
+  it('keeps mobile panel spacing and card chrome aligned with the desktop contract', () => {
+    const css = readFileSync(path.join(process.cwd(), 'desktop/src/react/mobile/mobile-entry.css'), 'utf8');
+    const jianInnerBlock = css.match(/\.jian-sidebar-inner\s*\{[\s\S]*?\}/)?.[0] ?? '';
+    const jianCardBlock = css.match(/\.jian-card\s*\{[\s\S]*?\}/)?.[0] ?? '';
+
+    expect(css).toMatch(/--panel-edge-gap:\s*var\(--space-sm\);/);
+    expect(css).toMatch(/--panel-card-bg:\s*var\(--bg-card,\s*var\(--bg\)\);/);
+    expect(css).toMatch(/--panel-card-radius:\s*var\(--radius-lg\);/);
+    expect(css).toMatch(/--panel-card-border:\s*1px solid rgba\(0,\s*0,\s*0,\s*0\.08\);/);
+    expect(css).toMatch(/--panel-card-shadow:\s*none;/);
+    expect(jianInnerBlock).toMatch(/padding:\s*0 var\(--panel-edge-gap\) 0 0;/);
+    expect(jianCardBlock).toMatch(/background(?:-color)?:\s*var\(--panel-card-bg\);/);
+    expect(jianCardBlock).toMatch(/border-radius:\s*var\(--panel-card-radius\);/);
+    expect(jianCardBlock).toMatch(/border:\s*var\(--panel-card-border\);/);
+    expect(jianCardBlock).toMatch(/box-shadow:\s*var\(--panel-card-shadow\);/);
+  });
+
   it('does not statically pull desktop-only app pages or heavy preview overlays into the mobile shell', () => {
     const source = readFileSync(path.join(process.cwd(), 'desktop/src/react/mobile/MobileApp.tsx'), 'utf8');
     const imports = staticImportSpecifiers(source);

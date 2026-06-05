@@ -93,7 +93,7 @@ function WorkspaceHeader() {
   );
 }
 
-export function RightWorkspacePanel() {
+export function RightWorkspacePanel({ compact = false }: { compact?: boolean }) {
   const rightWorkspaceTab = useStore(s => s.rightWorkspaceTab);
   const setRightWorkspaceTab = useStore(s => s.setRightWorkspaceTab);
   const jianView = useStore(s => s.jianView);
@@ -149,10 +149,14 @@ export function RightWorkspacePanel() {
         <JianDrawer />
         <JianFloatingToggle />
       </div>
-      <SessionTodoCard />
-      <WorkflowCard />
-      <AgentActivityCard />
-      <SessionStatusCard />
+      {!compact && (
+        <>
+          <SessionTodoCard />
+          <WorkflowCard />
+          <AgentActivityCard />
+          <SessionStatusCard />
+        </>
+      )}
     </div>
   );
 }
