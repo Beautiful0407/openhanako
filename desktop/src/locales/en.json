@@ -2758,6 +2758,7 @@
       "qualityDesc": "Quality tier: low, medium, high, auto (adapter maps to vendor parameters)",
       "modelDesc": "Model ID or short name (e.g. 5.0, dall-e-3). Uses configured default when omitted",
       "providerDesc": "Specify provider (optional)",
+      "suggestedFilenameDesc": "Short human filename hint for generated files, without extension. Use a concise slug or title, not the full prompt.",
       "submitted": "Submitted {count} image generation(s); results will appear in the card below when complete."
     },
     "generateVideo": {

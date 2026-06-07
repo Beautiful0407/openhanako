@@ -44,6 +44,7 @@ function makeAgent({ experienceEnabled }) {
   agent._webFetchTool = makeTool("web_fetch");
   agent._todoTool = makeTool("todo_write");
   agent._stageFilesTool = makeTool("stage_files");
+  agent._fileTool = makeTool("file");
   agent._artifactTool = makeTool("create_artifact");
   agent._notifyTool = makeTool("notify");
   agent._stopTaskTool = makeTool("stop_task");
@@ -112,9 +113,21 @@ describe("agent experience toggle", () => {
     const prompt = agent.buildSystemPrompt();
     expect(prompt).toContain("SessionFile means a local file related to the current session");
     expect(prompt).toContain("After write/edit succeeds, the tool layer records the file as session-related automatically");
+    expect(prompt).toContain("use the file tool");
+    expect(prompt).toContain("use action=copy and prefer passing fileId");
     expect(prompt).toContain("use stage_files to mark it as delivered");
     expect(prompt).toContain("Do not repeatedly stage the same file once it has already been staged");
     expect(prompt).not.toContain("create_artifact");
+  });
+
+  it("exposes transitional file tool beside legacy stage_files for SessionFile materialization v0", () => {
+    const { agent, root } = makeAgent({ experienceEnabled: false });
+    roots.push(root);
+
+    const toolNames = agent.getToolsSnapshot().map((tool) => tool.name);
+    expect(toolNames).toContain("stage_files");
+    expect(toolNames).toContain("file");
+    expect(toolNames).not.toContain("copy_file");
   });
 
   it("lets session creation force the frozen experience tool state", () => {

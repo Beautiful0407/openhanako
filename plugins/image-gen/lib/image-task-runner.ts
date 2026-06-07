@@ -49,6 +49,8 @@ export function buildImageParams(input) {
   return {
     type: "image",
     prompt: input.prompt,
+    ...(input.suggestedFilename && { filename: input.suggestedFilename }),
+    ...(input.filename && { filename: input.filename }),
     ...(input.ratio && { ratio: input.ratio }),
     ...(input.resolution && { resolution: input.resolution }),
     ...(input.quality && { quality: input.quality }),

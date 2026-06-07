@@ -88,6 +88,10 @@ const TERMINAL_READ_ACTIONS = new Set([
   "list",
 ]);
 
+const FILE_READ_ACTIONS = new Set([
+  "stat",
+]);
+
 export function normalizeSessionPermissionMode(raw) {
   if (typeof raw === "string") return normalizeSessionPermissionMode({ permissionMode: raw });
   if (raw?.permissionMode === SESSION_PERMISSION_MODES.AUTO) return SESSION_PERMISSION_MODES.AUTO;
@@ -168,6 +172,14 @@ function classifySessionFoldersAction(mode, action) {
   return { action: "allow" };
 }
 
+function classifyFileAction(mode, action) {
+  if (FILE_READ_ACTIONS.has(action)) return { action: "allow" };
+  if (mode === SESSION_PERMISSION_MODES.READ_ONLY) return blocked("file");
+  if (mode === SESSION_PERMISSION_MODES.AUTO) return review("file");
+  if (mode === SESSION_PERMISSION_MODES.ASK) return prompt("file");
+  return { action: "allow" };
+}
+
 export function classifySessionPermission({ mode, toolName, params, context }: { mode?: any; toolName?: any; params?: any; context?: any } = {}) {
   let normalized = normalizeSessionPermissionMode(mode);
   const name = typeof toolName === "string" ? toolName : "";
@@ -189,6 +201,7 @@ export function classifySessionPermission({ mode, toolName, params, context }: {
   if (name === "browser") return classifyBrowserAction(normalized, params?.action);
   if (name === "terminal") return classifyTerminalAction(normalized, params?.action);
   if (name === "session_folders") return classifySessionFoldersAction(normalized, params?.action);
+  if (name === "file") return classifyFileAction(normalized, params?.action);
   if (normalized === SESSION_PERMISSION_MODES.OPERATE) return { action: "allow" };
   if (normalized === SESSION_PERMISSION_MODES.READ_ONLY) return blocked(name);
   if (normalized === SESSION_PERMISSION_MODES.AUTO) return review(name);

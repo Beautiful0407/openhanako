@@ -22,6 +22,7 @@ export const parameters = {
     quality:    { type: "string", description: t("toolDef.generateImage.qualityDesc") },
     model:      { type: "string", description: t("toolDef.generateImage.modelDesc") },
     provider:   { type: "string", description: t("toolDef.generateImage.providerDesc") },
+    suggestedFilename: { type: "string", description: t("toolDef.generateImage.suggestedFilenameDesc") },
   },
   required: ["prompt"],
 };

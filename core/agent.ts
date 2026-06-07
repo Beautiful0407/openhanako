@@ -19,6 +19,7 @@ import { CronStore } from "../lib/desk/cron-store.ts";
 import { createAutomationTool } from "../lib/tools/automation-tool.ts";
 import { createWebFetchTool } from "../lib/tools/web-fetch.ts";
 import { createStageFilesTool } from "../lib/tools/output-file-tool.ts";
+import { createFileTool } from "../lib/tools/file-tool.ts";
 import { createArtifactTool } from "../lib/tools/artifact-tool.ts";
 import { createChannelTool } from "../lib/tools/channel-tool.ts";
 import { createDmTool } from "../lib/tools/dm-tool.ts";
@@ -127,6 +128,7 @@ export class Agent {
   declare _searchConfigResolver: any;
   declare _sessionFoldersTool: any;
   declare _stageFilesTool: any;
+  declare _fileTool: any;
   declare _stopTaskTool: any;
   declare _subagentCloseTool: any;
   declare _subagentReplyTool: any;
@@ -221,6 +223,7 @@ export class Agent {
     this._cronStore = null;
     this._automationTool = null;
     this._stageFilesTool = null;
+    this._fileTool = null;
     // Legacy compatibility only. Fresh sessions should write files and stage
     // them via stage_files; restored old sessions may still need this schema.
     this._artifactTool = null;
@@ -455,6 +458,12 @@ export class Agent {
     this._stageFilesTool = createStageFilesTool({
       registerSessionFile: (entry) => this._cb?.registerSessionFile?.(entry),
       getSessionPath: () => this._cb?.getCurrentSessionPath?.(),
+    });
+    this._fileTool = createFileTool({
+      getCwd: () => this._cb?.getCwd?.() || this.agentDir,
+      getSessionPath: () => this._cb?.getCurrentSessionPath?.(),
+      resolveSessionFile: (fileId, options = {}) => this._cb?.getEngine?.()?.getSessionFile?.(fileId, options) || null,
+      registerSessionFile: (entry) => this._cb?.registerSessionFile?.(entry),
     });
     this._artifactTool = createArtifactTool({
       getHanakoHome: () => this._cb?.getEngine?.()?.hanakoHome,
@@ -852,6 +861,7 @@ export class Agent {
       this._todoTool,
       this._automationTool,
       this._stageFilesTool,
+      this._fileTool,
       ...legacyArtifactTools,
       this._channelTool,
       this._dmTool,
@@ -1263,6 +1273,7 @@ export class Agent {
         "SessionFile 表示和当前 session 相关的本地文件：用户上传、你用 write/edit 产生的、插件产物、浏览器截图、安装产物，都会进入同一套 session 文件记录。\n\n" +
         "当用户本轮附加文件时，消息里可能出现 [SessionFile] JSON 上下文。这里的 fileId 是机器契约，label 只是展示名；读取时优先用 read 的 fileId 参数，不要从 label 或可见文本重建真实路径。\n\n" +
         "当你需要使用本轮会话已经产生或登记过的文件时，先调用 current_status 获取 session_files。它会返回当前 session 的文件清单、fileId、来源、状态和本机路径。不要猜测 session-files 缓存路径。\n\n" +
+        "当你需要查看文件元信息或把已有 SessionFile 复制到当前项目目录时，使用 file 工具。查看用 action=stat；复制用 action=copy，并优先传 fileId；它会把原文件复制到当前 cwd 内的目标路径并重新登记为 external SessionFile。不要移动、编辑或删除原 SessionFile。\n\n" +
         "write/edit 成功后会由工具层自动记录为 session 相关文件；这只表示文件和本次会话有关，不等于已经交付给用户。\n\n" +
         "当用户要求你把文件发给他、呈现给他、交付给他，或者你创建/修改了一个明确需要用户查看或拿走的文件时，使用 stage_files 标记为已交付。stage 表示把这个 session 相关文件提升为消费端可展示/可发送的文件。\n\n" +
         "- 只传真实存在的本机绝对路径\n" +
@@ -1273,6 +1284,7 @@ export class Agent {
         "SessionFile means a local file related to the current session: files uploaded by the user, files you produce with write/edit, plugin outputs, browser screenshots, and install outputs all enter the same session file record.\n\n" +
         "When the user attaches files in the current turn, the message may include [SessionFile] JSON context. fileId is the machine contract and label is display-only; prefer the read tool's fileId argument instead of reconstructing a real path from label or visible text.\n\n" +
         "When you need to use a file that has already been produced or registered in this conversation, call current_status with the session_files key first. It returns the current session file list, fileId, origin, status, and local path. Do not guess session-files cache paths.\n\n" +
+        "When you need to inspect file metadata or copy an existing SessionFile into the current project folder, use the file tool. Use action=stat for metadata; use action=copy and prefer passing fileId for copies. This copies the original into the current cwd target and registers the copy as an external SessionFile. Do not move, edit, or delete the original SessionFile.\n\n" +
         "After write/edit succeeds, the tool layer records the file as session-related automatically; this only means the file belongs to this session, not that it has been delivered to the user.\n\n" +
         "When the user asks you to send, present, or hand over a file, or when you create/modify a file the user clearly needs to see or take away, use stage_files to mark it as delivered. Staging promotes this session-related file to something consumers can display/send.\n\n" +
         "- Pass only real local absolute paths\n" +

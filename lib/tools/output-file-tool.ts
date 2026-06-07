@@ -1,6 +1,11 @@
 /**
  * output-file-tool.js — 文件暂存工具（stage_files）
  *
+ * Legacy compatibility layer:
+ * stage_files is retained for existing Agent prompts, old sessions, block
+ * extractors, and delivery cards. Do not grow new Resource/Storage behavior in
+ * this tool; add new file-resource behavior behind FileRef/ResourceIO instead.
+ *
  * agent 声明持有文件，框架按上下文投递（桌面渲染 / bridge 发送）。
  * 服务端拦截 tool_execution_end 事件，通过 WebSocket 推送 file_output 事件给前端。
  *

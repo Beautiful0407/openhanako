@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
-import { retryImageTask } from "../plugins/image-gen/lib/image-task-runner.ts";
+import { buildImageParams, retryImageTask } from "../plugins/image-gen/lib/image-task-runner.ts";
 import registerTaskRoutes from "../plugins/image-gen/routes/tasks.ts";
 
 async function flushBackgroundSubmits() {
@@ -76,6 +76,17 @@ function makeCtx(task, adapterOverrides = {}) {
 }
 
 describe("image generation retry", () => {
+  it("passes suggestedFilename to adapters as the storage filename hint", () => {
+    expect(buildImageParams({
+      prompt: "a quiet moonlit harbor",
+      suggestedFilename: "moonlit-harbor",
+    })).toMatchObject({
+      type: "image",
+      prompt: "a quiet moonlit harbor",
+      filename: "moonlit-harbor",
+    });
+  });
+
   it("reopens a failed image task with the same parameters and taskId", async () => {
     const task = makeFailedTask();
     const { ctx, adapter, store, poller, bus } = makeCtx(task);

@@ -39,6 +39,55 @@ describe("session permission wrapper", () => {
     expect(result.details.errorCode).toBe("ACTION_BLOCKED_BY_READ_ONLY");
   });
 
+  it("allows file stat in read-only mode", async () => {
+    const tool = makeTool("file");
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "read_only",
+    });
+
+    const result = await wrapped.execute("call-1", { action: "stat", fileId: "sf_1" }, null, null, ctx);
+
+    expect(tool.execute).toHaveBeenCalledOnce();
+    expect(result.details.executed).toBe(true);
+  });
+
+  it("blocks file copy in read-only mode", async () => {
+    const tool = makeTool("file");
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "read_only",
+    });
+
+    const result = await wrapped.execute("call-1", { action: "copy", fileId: "sf_1" }, null, null, ctx);
+
+    expect(tool.execute).not.toHaveBeenCalled();
+    expect(result.details.errorCode).toBe("ACTION_BLOCKED_BY_READ_ONLY");
+  });
+
+  it("asks before running the transitional file tool in ask mode", async () => {
+    const tool = makeTool("file");
+    const confirmStore = {
+      create: vi.fn(() => ({
+        confirmId: "confirm-tool-1",
+        promise: Promise.resolve({ action: "confirmed" }),
+      })),
+    };
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "ask",
+      getConfirmStore: () => confirmStore,
+      emitEvent: vi.fn(),
+    });
+
+    const result = await wrapped.execute("call-1", { action: "copy", fileId: "sf_1" }, null, null, ctx);
+
+    expect(confirmStore.create).toHaveBeenCalledWith(
+      "tool_action_approval",
+      expect.objectContaining({ toolName: "file" }),
+      "/tmp/session.jsonl",
+    );
+    expect(tool.execute).toHaveBeenCalledOnce();
+    expect(result.details.executed).toBe(true);
+  });
+
   it("asks before running side-effect tools in ask mode", async () => {
     const tool = makeTool("write");
     const emitted = [];
