@@ -275,7 +275,7 @@ describe('image-gen media generation', () => {
     expect(resolveMediaGenerationBlocks(blocks)).toEqual(blocks);
   });
 
-  it('deduplicates only media-generation replacement file blocks', () => {
+  it('does not deduplicate different media generation tasks by output file identity', () => {
     const blocks = [
       {
         type: 'media_generation',
@@ -307,7 +307,51 @@ describe('image-gen media generation', () => {
       }],
     ]);
 
-    expect(resolveMediaGenerationBlocks(blocks, results)).toEqual([{
+    expect(resolveMediaGenerationBlocks(blocks, results)).toEqual([
+      {
+        type: 'file',
+        afterIndex: 1,
+        replacesTaskId: 'task-a',
+        fileId: 'sf_img',
+        filePath: '/tmp/generated.png',
+        label: 'generated.png',
+        ext: 'png',
+      },
+      {
+        type: 'file',
+        afterIndex: 4,
+        replacesTaskId: 'task-b',
+        fileId: 'sf_img',
+        filePath: '/tmp/generated.png',
+        label: 'generated.png',
+        ext: 'png',
+      },
+    ]);
+  });
+
+  it('resolves each standalone media generation task result only once', () => {
+    const standaloneResults = [
+      {
+        taskId: 'task-a',
+        type: 'image-generation',
+        status: 'success',
+        afterIndex: 1,
+        result: {
+          sessionFiles: [{ fileId: 'sf_img', filePath: '/tmp/generated.png', label: 'generated.png', ext: 'png' }],
+        },
+      },
+      {
+        taskId: 'task-a',
+        type: 'image-generation',
+        status: 'success',
+        afterIndex: 4,
+        result: {
+          sessionFiles: [{ fileId: 'sf_img', filePath: '/tmp/generated.png', label: 'generated.png', ext: 'png' }],
+        },
+      },
+    ];
+
+    expect(resolveMediaGenerationBlocks([], new Map(), standaloneResults)).toEqual([{
       type: 'file',
       afterIndex: 1,
       replacesTaskId: 'task-a',
