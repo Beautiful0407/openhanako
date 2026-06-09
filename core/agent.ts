@@ -62,9 +62,9 @@ import {
   type AgentAppearanceModel,
   formatAgentAppearancePrompt,
   hasAgentAppearanceSummaryCapability,
-  readCachedAgentAppearanceSummary,
+  readAgentAppearanceProfileResource,
   type ResolvedAgentAppearanceModelConfig,
-  refreshAgentAppearanceSummary,
+  refreshAgentAppearanceProfileResource,
 } from "../lib/agent-appearance-summary.ts";
 
 const moduleLog = createModuleLogger("agent");
@@ -783,7 +783,7 @@ export class Agent {
 
   async refreshAppearanceSummary(options: RefreshAppearanceSummaryOptions = {}) {
     const engine = this._getAppearanceEngine();
-    const summary = await refreshAgentAppearanceSummary({
+    const summary = await refreshAgentAppearanceProfileResource({
       agentDir: this.agentDir,
       agentName: this.agentName,
       visionConfig: this._resolveAppearanceVisionConfig(engine),
@@ -1445,7 +1445,7 @@ export class Agent {
     parts.push(ishiki);
 
     if (!forSubagent && this._canInjectAppearancePrompt(targetModel)) {
-      const appearance = readCachedAgentAppearanceSummary(this.agentDir);
+      const appearance = readAgentAppearanceProfileResource(this.agentDir);
       const appearancePrompt = appearance
         ? formatAgentAppearancePrompt(appearance.summary, this._config.locale || "")
         : "";

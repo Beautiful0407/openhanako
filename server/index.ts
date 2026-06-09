@@ -75,6 +75,7 @@ import {
 import { createCheckpointsRoute } from "./routes/checkpoints.ts";
 import { createCommandsRoute } from "./routes/commands.ts";
 import { createServerIdentityRoute } from "./routes/server-identity.ts";
+import { ensureLocalIdentityRegistries } from "../core/server-identity.ts";
 import { createResourcesRoute } from "./routes/resources.ts";
 import { createUsageRoute } from "./routes/usage.ts";
 import { createWebAuthRoute } from "./routes/web-auth.ts";
@@ -249,6 +250,10 @@ await bindServerTransportOwnership(server, {
 log.log("① ensureFirstRun...");
 ensureFirstRun(hanakoHome, productDir);
 log.log("① ensureFirstRun 完成");
+
+log.log("① ensureLocalIdentityRegistries...");
+ensureLocalIdentityRegistries(hanakoHome);
+log.log("① ensureLocalIdentityRegistries 完成");
 
 // ── 初始化 Debug 日志 ──
 const dlog = initDebugLog(path.join(hanakoHome, "logs"));

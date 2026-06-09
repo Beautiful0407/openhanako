@@ -22,6 +22,10 @@ import {
   providerCredentialAllowsMissingApiKey,
 } from "../shared/provider-auth.ts";
 import { validateProviderModels } from "../shared/provider-model-validation.ts";
+import {
+  normalizeModelProtocolCompat,
+  normalizeVisionCapabilities,
+} from "../shared/model-capabilities.ts";
 import { validateProviderRuntime } from "./media-runtime-contract.ts";
 
 const _defaultModels = JSON.parse(
@@ -286,6 +290,18 @@ function omitUndefined(value) {
     if (item !== undefined) result[key] = item;
   }
   return result;
+}
+
+function mergeModelMetadata(base, patch) {
+  const merged = { ...base, ...patch };
+  if (patch.compat) {
+    merged.compat = {
+      ...(isPlainObject(base.compat) ? base.compat : {}),
+      ...patch.compat,
+    };
+  }
+  if (!merged.name) delete merged.name;
+  return merged;
 }
 
 function getModelType(providerId, modelEntry) {
@@ -1142,7 +1158,7 @@ export class ProviderRegistry {
    * 裸字符串条目会被升级为对象
    * @param {string} providerId
    * @param {string} modelId
-   * @param {{ name?: string, context?: number, maxOutput?: number, image?: boolean, video?: boolean, reasoning?: boolean, defaultThinkingLevel?: string }} meta
+   * @param {{ name?: string, context?: number, maxOutput?: number, image?: boolean, video?: boolean, reasoning?: boolean, defaultThinkingLevel?: string, compat?: object, visionCapabilities?: object }} meta
    */
   updateModelEntry(providerId, modelId, meta) {
     const userConfig = this._loadAddedModels();
@@ -1163,6 +1179,10 @@ export class ProviderRegistry {
     for (const key of ALLOWED) {
       if (meta[key] !== undefined) safe[key] = meta[key];
     }
+    const compat = normalizeModelProtocolCompat(meta?.compat);
+    if (compat) safe.compat = compat;
+    const visionCapabilities = normalizeVisionCapabilities(meta?.visionCapabilities);
+    if (visionCapabilities) safe.visionCapabilities = visionCapabilities;
 
     let found = false;
     const nextModels = uc.models.map((m) => {
@@ -1173,13 +1193,9 @@ export class ProviderRegistry {
       // 删除旧字段 vision，避免残留
       if (base.vision !== undefined) {
         const { vision: _vision, ...cleaned } = base;
-        const merged = { ...cleaned, ...safe };
-        if (!merged.name) delete merged.name;
-        return merged;
+        return mergeModelMetadata(cleaned, safe);
       }
-      const merged = { ...base, ...safe };
-      if (!merged.name) delete merged.name;
-      return merged;
+      return mergeModelMetadata(base, safe);
     });
 
     // upsert：模型不在列表中时自动添加

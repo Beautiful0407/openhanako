@@ -76,6 +76,42 @@ const OFFICIAL_MIMO_PROVIDERS = new Set([
   "xiaomi-token-plan-sgp-ams",
 ]);
 
+const MODEL_THINKING_FORMATS = new Set([
+  "anthropic",
+  "qwen",
+  "qwen-chat-template",
+  "zhipu",
+  "deepseek",
+  "openrouter",
+]);
+
+const MODEL_REASONING_PROFILES = new Set([
+  "deepseek-v4-anthropic",
+  "deepseek-v4-openai",
+  "mimo-openai",
+  "zhipu-openai",
+]);
+
+export function normalizeModelProtocolCompat(value: any): Record<string, any> | null {
+  if (!isPlainObject(value)) return null;
+  const out: Record<string, any> = {};
+
+  const thinkingFormat = lower(value.thinkingFormat);
+  if (MODEL_THINKING_FORMATS.has(thinkingFormat)) {
+    out.thinkingFormat = thinkingFormat;
+  }
+
+  const reasoningProfile = lower(value.reasoningProfile || value.thinkingProfile);
+  if (MODEL_REASONING_PROFILES.has(reasoningProfile)) {
+    out.reasoningProfile = reasoningProfile;
+  }
+
+  if (value.hanaVideoInput === true) out.hanaVideoInput = true;
+  if (value.hanaAudioInput === true) out.hanaAudioInput = true;
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export function isOfficialMimoEndpoint(model: any, context: any = {}) {
   const provider = getProvider(model, context);
   if (OFFICIAL_MIMO_PROVIDERS.has(provider)) return true;

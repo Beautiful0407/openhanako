@@ -2066,7 +2066,7 @@ export class HanaEngine {
   //  日记 / 工具调用
   // ════════════════════════════
 
-  async writeDiary() {
+  async writeDiary(opts: any = {}) {
     const currentPath = this.currentSessionPath;
     if (currentPath && this.agent.memoryTicker) {
       await this.agent.memoryTicker.flushSession(currentPath);
@@ -2088,6 +2088,7 @@ export class HanaEngine {
       userName: agent.userName,
       agentName: agent.agentName,
       cwd: this.homeCwd || process.cwd(),
+      targetDate: opts.targetDate,
       activityStore: this.activityStore,
       sessionDir: agent.sessionDir,
       isSessionMemoryEnabledForPath: (sessionPath) => {

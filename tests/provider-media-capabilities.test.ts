@@ -38,10 +38,47 @@ describe("ProviderRegistry media capabilities", () => {
       expect.objectContaining({ id: "image-01", protocolId: "minimax-images" }),
       expect.objectContaining({ id: "image-01-live", protocolId: "minimax-images" }),
     ]));
+    expect(byId.get("minimax")?.credentialLanes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "minimax", providerId: "minimax" }),
+      expect.objectContaining({ id: "minimax-token-plan", providerId: "minimax-token-plan" }),
+    ]));
+    expect(byId.has("minimax-token-plan")).toBe(false);
     expect(byId.get("gemini")?.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "gemini-2.5-flash-image", protocolId: "gemini-generate-content-image" }),
       expect.objectContaining({ id: "gemini-3.1-flash-image-preview", protocolId: "gemini-generate-content-image" }),
     ]));
+  });
+
+  it("uses MiniMax Token Plan credentials as a MiniMax image generation lane", () => {
+    fs.writeFileSync(path.join(tmpHome, "added-models.yaml"), YAML.dump({
+      providers: {
+        "minimax-token-plan": {
+          api_key: "token-plan-key",
+          base_url: "https://api.minimaxi.com/anthropic",
+          api: "anthropic-messages",
+        },
+      },
+    }), "utf-8");
+
+    const registry = new ProviderRegistry(tmpHome);
+    registry.reload();
+
+    const status = registry.getMediaProviderCredentialStatus("minimax", "image_generation");
+    const resolved = registry.resolveMediaModel({
+      providerId: "minimax",
+      modelId: "image-01",
+      capability: "image_generation",
+    });
+
+    expect(status).toMatchObject({
+      hasCredentials: true,
+      activeLaneId: "minimax-token-plan",
+      activeProviderId: "minimax-token-plan",
+    });
+    expect(resolved).toMatchObject({
+      providerId: "minimax",
+      model: expect.objectContaining({ id: "image-01", protocolId: "minimax-images" }),
+    });
   });
 
   it("exposes built-in speech recognition providers without exposing MiniMax Token Plan as STT", () => {
