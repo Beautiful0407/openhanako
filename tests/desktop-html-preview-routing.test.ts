@@ -11,6 +11,7 @@ describe("desktop HTML preview routing", () => {
     const source = fs.readFileSync(MAIN_PATH, "utf-8");
 
     expect(source).not.toContain("_htmlPreviewViews");
+    expect(source).not.toContain("_closeAllHtmlPreviewViews");
     expect(source).not.toContain("function _showHtmlPreviewView");
     expect(source).not.toContain("function _closeHtmlPreviewView");
     expect(source).not.toContain("function _isAllowedHtmlPreviewUrl");

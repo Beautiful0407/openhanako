@@ -1765,7 +1765,6 @@ function createMainWindow() {
 
   mainWindow.on("closed", () => {
     setUpdaterMainWindow(null);
-    _closeAllHtmlPreviewViews();
     mainWindow = null;
     if (settingsWindow && !settingsWindow.isDestroyed()) {
       settingsWindow.destroy();
@@ -4761,7 +4760,6 @@ app.on("before-quit", async (event) => {
   _browserWebView = null;
   _currentBrowserSession = null;
   _currentBrowserTabId = null;
-  _closeAllHtmlPreviewViews();
 
   // server 清理
   if ((serverProcess && !hasChildExitObserved(serverProcess)) || (reusedServerPid && reusedServerOwned)) {
