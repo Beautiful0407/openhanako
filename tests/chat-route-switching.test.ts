@@ -254,16 +254,19 @@ describe("chat route model switch guard", () => {
         type: "prompt",
         text: "hello from phone",
         sessionPath: "/tmp/shared-session.jsonl",
+        clientMessageId: "client-user-1",
       }),
     }, phoneWs);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(hub.send).toHaveBeenCalledWith("hello from phone", expect.objectContaining({
       sessionPath: "/tmp/shared-session.jsonl",
+      clientMessageId: "client-user-1",
     }));
 
     subscriber?.({
       type: "session_user_message",
+      clientMessageId: "client-user-1",
       message: { id: "u1", text: "hello from phone" },
     }, "/tmp/shared-session.jsonl");
 
@@ -274,6 +277,7 @@ describe("chat route model switch guard", () => {
         expect.objectContaining({
           type: "session_user_message",
           sessionPath: "/tmp/shared-session.jsonl",
+          clientMessageId: "client-user-1",
           message: { id: "u1", text: "hello from phone" },
         }),
       ]));

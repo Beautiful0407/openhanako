@@ -5,7 +5,7 @@
 import type { ChatListItem, ChatMessage, ContentBlock, SessionMessages, SessionModel, SessionRegistryFile } from './chat-types';
 import { invalidateSessionCache } from './selectors/file-refs';
 import { invalidateStreamBuffer, invalidateStreamResumeMeta } from './stream-invalidator';
-import { clearMessageLiveVersion } from './message-live-version';
+import { bumpMessageLiveVersion, clearMessageLiveVersion } from './message-live-version';
 
 export interface ChatSlice {
   chatSessions: Record<string, SessionMessages>;
@@ -25,6 +25,9 @@ export interface ChatSlice {
   initSession: (path: string, items: ChatListItem[], hasMore: boolean, revision?: string | null) => void;
   prependItems: (path: string, items: ChatListItem[], hasMore: boolean) => void;
   appendItem: (path: string, item: ChatListItem) => void;
+  appendOptimisticUserMessage: (path: string, message: ChatMessage) => void;
+  confirmOptimisticUserMessage: (path: string, clientMessageId: string, message: ChatMessage) => boolean;
+  markOptimisticUserMessageFailed: (path: string, clientMessageId: string, error: string) => boolean;
   updateLastMessage: (path: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   updateMessageById: (path: string, messageId: string, updater: (msg: ChatMessage) => ChatMessage) => boolean;
   truncateSessionFromMessage: (path: string, messageId: string) => boolean;
@@ -111,6 +114,105 @@ export const createChatSlice = (
       },
     };
   }),
+
+  appendOptimisticUserMessage: (path, message) => {
+    bumpMessageLiveVersion(path);
+    set((s) => {
+      const session = s.chatSessions[path] || {
+        items: [],
+        hasMore: false,
+        loadingMore: false,
+        oldestId: undefined,
+        revision: null,
+      };
+      const existingIdx = session.items.findIndex((item) =>
+        item.type === 'message' &&
+        item.data.role === 'user' &&
+        item.data.id === message.id,
+      );
+      const nextItem: ChatListItem = { type: 'message', data: message };
+      const items = existingIdx >= 0 ? [...session.items] : [...session.items, nextItem];
+      if (existingIdx >= 0) items[existingIdx] = nextItem;
+      return {
+        chatSessions: {
+          ...s.chatSessions,
+          [path]: {
+            ...session,
+            items,
+            oldestId: session.oldestId || firstMessageId(items),
+          },
+        },
+      };
+    });
+  },
+
+  confirmOptimisticUserMessage: (path, clientMessageId, message) => {
+    let consumed = false;
+    set((s) => {
+      const session = s.chatSessions[path];
+      if (!session) return {};
+      const targetIdx = session.items.findIndex((item) =>
+        item.type === 'message' &&
+        item.data.role === 'user' &&
+        item.data.id === clientMessageId,
+      );
+      if (targetIdx < 0) return {};
+      const items = [...session.items];
+      const current = items[targetIdx];
+      if (current.type !== 'message' || current.data.role !== 'user') return {};
+      const nextData: ChatMessage = {
+        ...current.data,
+        ...message,
+        id: current.data.id,
+        sourceEntryId: message.sourceEntryId ?? current.data.sourceEntryId,
+      };
+      delete nextData.sendStatus;
+      delete nextData.sendError;
+      items[targetIdx] = { type: 'message', data: nextData };
+      consumed = true;
+      return {
+        chatSessions: {
+          ...s.chatSessions,
+          [path]: { ...session, items },
+        },
+      };
+    });
+    return consumed;
+  },
+
+  markOptimisticUserMessageFailed: (path, clientMessageId, error) => {
+    let consumed = false;
+    set((s) => {
+      const session = s.chatSessions[path];
+      if (!session) return {};
+      const targetIdx = session.items.findIndex((item) =>
+        item.type === 'message' &&
+        item.data.role === 'user' &&
+        item.data.id === clientMessageId,
+      );
+      if (targetIdx < 0) return {};
+      const items = [...session.items];
+      const current = items[targetIdx];
+      if (current.type !== 'message' || current.data.role !== 'user') return {};
+      items[targetIdx] = {
+        type: 'message',
+        data: {
+          ...current.data,
+          sendStatus: 'failed',
+          sendError: error,
+        },
+      };
+      consumed = true;
+      return {
+        chatSessions: {
+          ...s.chatSessions,
+          [path]: { ...session, items },
+        },
+      };
+    });
+    if (consumed) bumpMessageLiveVersion(path);
+    return consumed;
+  },
 
   updateLastMessage: (path, updater) => set((s) => {
     const session = s.chatSessions[path];

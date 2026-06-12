@@ -15,6 +15,7 @@
  * @param {Array<{type:'audio', data:string, mimeType:string}>} [opts.audios]
  * @param {string[]} [opts.audioAttachmentPaths]
  * @param {Array<{type:string, filename?:string, mimeType?:string, buffer:Buffer|Uint8Array|string}>} [opts.inboundFiles]
+ * @param {string} [opts.clientMessageId]
  * @param {(delta: string, accumulated: string) => void} [opts.onDelta]
  * @param {object} [opts.displayMessage]
  * @param {Array<{fileId?:string, sessionPath?:string, label?:string, kind?:string}>} [opts.sessionFileRefs]
@@ -79,6 +80,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
   audios?: Array<{ type: string; data: string; mimeType: string }>;
   audioAttachmentPaths?: string[];
   inboundFiles?: Array<{ type: string; filename?: string; mimeType?: string; buffer: any }>;
+  clientMessageId?: string;
   onDelta?: (delta: string, accumulated: string) => void;
   displayMessage?: any;
   sessionFileRefs?: Array<{ fileId?: string; sessionPath?: string; label?: string; kind?: string }>;
@@ -95,6 +97,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     audios,
     audioAttachmentPaths,
     inboundFiles,
+    clientMessageId,
     onDelta,
     displayMessage,
     sessionFileRefs,
@@ -185,6 +188,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     recordMessageOriginEntry(session, sessionPath, displayMessage);
     engine.emitEvent?.({
       type: "session_user_message",
+      clientMessageId: clientMessageId || null,
       message: {
         text: displayMessage?.text ?? text ?? "",
         timestamp: Date.now(),
@@ -265,6 +269,7 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
   audios?: Array<{ type: string; data: string; mimeType: string }>;
   audioAttachmentPaths?: string[];
   inboundFiles?: Array<{ type: string; filename?: string; mimeType?: string; buffer: any }>;
+  clientMessageId?: string;
   displayMessage?: any;
   sessionFileRefs?: Array<{ fileId?: string; sessionPath?: string; label?: string; kind?: string }>;
   uiContext?: any;
@@ -280,6 +285,7 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
     audios,
     audioAttachmentPaths,
     inboundFiles,
+    clientMessageId,
     displayMessage,
     sessionFileRefs,
     uiContext,
@@ -363,6 +369,7 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
 
   engine.emitEvent?.({
     type: "session_user_message",
+    clientMessageId: clientMessageId || null,
     message: {
       text: displayMessage?.text ?? text ?? "",
       timestamp: Date.now(),

@@ -19,6 +19,7 @@ import { revealDeskDirectory, toggleJianSidebar } from '../stores/desk-actions';
 import { getWebSocket } from '../services/websocket';
 import { collectUiContext } from '../utils/ui-context';
 import { formatQuotedSelectionForPrompt } from '../utils/quoted-selection';
+import { renderMarkdown } from '../utils/markdown';
 import type { ThinkingLevel } from '../stores/model-slice';
 import { SlashCommandMenu } from './input/SlashCommandMenu';
 import { FileMentionMenu } from './input/FileMentionMenu';
@@ -119,6 +120,12 @@ function chatAudioMimeTypeForName(name: string, fallback?: string): string {
     webm: 'audio/webm',
   };
   return mimeMap[ext] || 'audio/wav';
+}
+
+function createClientUserMessageId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `client-user-${uuid}`;
+  return `client-user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 async function readFileAsBase64(file: File): Promise<string> {
@@ -1445,6 +1452,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       ) : [];
 
       const sessionPathForSend = useStore.getState().currentSessionPath;
+      if (!sessionPathForSend) return;
       const sessionFileRefs = otherFiles
         .filter(f => f.fileId)
         .map(f => ({
@@ -1564,39 +1572,69 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       clearAttachedFiles();
       if (useStore.getState().quotedSelections.length > 0) useStore.getState().clearQuotedSelections();
 
+      const clientMessageId = createClientUserMessageId();
+      const displayMessage = {
+        text,
+        skills: skills.length > 0 ? skills : undefined,
+        quotedText: quotes.length > 0 ? quotes.map(q => q.text).join('\n\n') : undefined,
+        attachments: allFiles.length > 0 ? allFiles.map(f => {
+          const cached = imageBase64Map.get(f.path);
+          const cachedVideo = videoBase64Map.get(f.path);
+          const cachedAudio = audioBase64Map.get(f.path);
+          const imageFile = !f.isDirectory && isImageFile(f.name);
+          return {
+            fileId: f.fileId,
+            path: f.path,
+            name: f.name,
+            isDir: !!f.isDirectory,
+            mimeType: f.mimeType || cached?.mimeType || cachedVideo?.mimeType || cachedAudio?.mimeType || undefined,
+            visionAuxiliary: imageFile && !supportsVision,
+            ...(f.waveform ? { waveform: f.waveform } : {}),
+          };
+        }) : undefined,
+      };
+
+      useStore.getState().appendOptimisticUserMessage(sessionPathForSend, {
+        id: clientMessageId,
+        role: 'user',
+        text,
+        textHtml: text ? renderMarkdown(text) : undefined,
+        timestamp: Date.now(),
+        attachments: displayMessage.attachments,
+        quotedText: displayMessage.quotedText,
+        skills: displayMessage.skills,
+        sendStatus: 'pending',
+      });
+
       const ws = getWebSocket();
       const wsMsg: Record<string, unknown> = {
         type,
+        clientMessageId,
         text: finalText,
         sessionPath: sessionPathForSend,
         uiContext: collectUiContext(useStore.getState()),
-        displayMessage: {
-          text,
-          skills: skills.length > 0 ? skills : undefined,
-          quotedText: quotes.length > 0 ? quotes.map(q => q.text).join('\n\n') : undefined,
-          attachments: allFiles.length > 0 ? allFiles.map(f => {
-            const cached = imageBase64Map.get(f.path);
-            const cachedVideo = videoBase64Map.get(f.path);
-            const cachedAudio = audioBase64Map.get(f.path);
-            const imageFile = !f.isDirectory && isImageFile(f.name);
-            return {
-              fileId: f.fileId,
-              path: f.path,
-              name: f.name,
-              isDir: !!f.isDirectory,
-              mimeType: f.mimeType || cached?.mimeType || cachedVideo?.mimeType || cachedAudio?.mimeType || undefined,
-              visionAuxiliary: imageFile && !supportsVision,
-              ...(f.waveform ? { waveform: f.waveform } : {}),
-            };
-          }) : undefined,
-        },
+        displayMessage,
       };
       if (sessionFileRefs.length > 0) wsMsg.sessionFileRefs = sessionFileRefs;
       if (images.length > 0) wsMsg.images = images;
       if (videos.length > 0) wsMsg.videos = videos;
       if (audios.length > 0) wsMsg.audios = audios;
       if (skills.length > 0) wsMsg.skills = skills;
-      ws?.send(JSON.stringify(wsMsg));
+      if (!ws) {
+        useStore.getState().markOptimisticUserMessageFailed(
+          sessionPathForSend,
+          clientMessageId,
+          'websocket_unavailable',
+        );
+        return;
+      }
+      try {
+        ws.send(JSON.stringify(wsMsg));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        useStore.getState().markOptimisticUserMessageFailed(sessionPathForSend, clientMessageId, message);
+        throw err;
+      }
     } finally {
       setSending(false);
     }

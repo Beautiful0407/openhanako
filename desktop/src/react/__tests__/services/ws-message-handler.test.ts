@@ -198,6 +198,44 @@ describe('ws-message-handler session-scoped desktop events', () => {
     expect(first.data.attachments).toEqual([{ path: '/tmp/voice.wav', name: 'voice.wav', isDir: false, mimeType: 'audio/wav' }]);
   });
 
+  it('session_user_message confirms an optimistic user message by clientMessageId without duplicating it', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: {
+        id: 'client-user-1',
+        role: 'user',
+        text: 'pending text',
+        textHtml: 'pending text',
+        sendStatus: 'pending',
+      },
+    });
+
+    handleServerMessage({
+      type: 'session_user_message',
+      sessionPath: '/session/a.jsonl',
+      clientMessageId: 'client-user-1',
+      message: {
+        id: 'entry-u1',
+        text: 'confirmed text',
+        timestamp: '2026-06-12T10:00:00.000Z',
+      },
+    });
+
+    const items = useStore.getState().chatSessions['/session/a.jsonl']?.items || [];
+    expect(items).toHaveLength(1);
+    const first = items[0];
+    expect(first?.type).toBe('message');
+    if (!first || first.type !== 'message') throw new Error('expected message item');
+    expect(first.data).toMatchObject({
+      id: 'client-user-1',
+      sourceEntryId: 'entry-u1',
+      role: 'user',
+      text: 'confirmed text',
+      timestamp: Date.parse('2026-06-12T10:00:00.000Z'),
+    });
+    expect(first.data.sendStatus).toBeUndefined();
+  });
+
   it('voice_transcription_update 按 fileId 回填现有用户语音附件', () => {
     handleServerMessage({
       type: 'session_user_message',

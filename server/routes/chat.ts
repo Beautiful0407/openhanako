@@ -857,7 +857,11 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       });
     } else if (event.type === "session_user_message") {
       if (!ss) return;
-      emitStreamEvent(sessionPath, ss, { type: "session_user_message", message: event.message });
+      emitStreamEvent(sessionPath, ss, {
+        type: "session_user_message",
+        clientMessageId: event.clientMessageId || null,
+        message: event.message,
+      });
     } else if (event.type === "voice_transcription_update") {
       broadcast({
         type: "voice_transcription_update",
@@ -1408,6 +1412,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                   await submitDesktopSessionInterjection(engine, {
                     sessionPath: promptSessionPath,
                     text: promptText,
+                    clientMessageId: msg.clientMessageId,
                     images: msg.images,
                     videos: msg.videos,
                     audios: msg.audios,
@@ -1427,6 +1432,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
               try {
                 await hub.send(promptText, {
                   sessionPath: promptSessionPath,
+                  clientMessageId: msg.clientMessageId,
                   images: msg.images,
                   videos: msg.videos,
                   audios: msg.audios,

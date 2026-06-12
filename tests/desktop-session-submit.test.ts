@@ -134,6 +134,32 @@ describe("submitDesktopSessionMessage", () => {
     });
   });
 
+  it("threads clientMessageId into the session user message event", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      clientMessageId: "client-user-1",
+      displayMessage: { text: "hello" },
+    } as any);
+
+    expect(engine.emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session_user_message",
+        clientMessageId: "client-user-1",
+        message: expect.objectContaining({ text: "hello" }),
+      }),
+      "/tmp/desk.jsonl",
+    );
+  });
+
   it("forwards turn context to promptSession without exposing it in the visible user message", async () => {
     const session = makeFakeSession();
     const engine = {

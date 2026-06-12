@@ -265,7 +265,7 @@ export type ContentBlock = TextDecorator | RichBlock;
 // ── 消息 ──
 
 export interface ChatMessage {
-  id: string;              // 服务端返回的稳定 ID（JSONL 行号）
+  id: string;              // UI message id；本地发送的 user message 可先使用 clientMessageId
   sourceEntryId?: string;  // Pi SDK session entry id，用于 branch-aware 的重新生成/编辑
   role: 'user' | 'assistant';
   // User
@@ -275,6 +275,8 @@ export interface ChatMessage {
   attachments?: UserAttachment[];
   deskContext?: DeskContext | null;
   skills?: string[];
+  sendStatus?: 'pending' | 'failed';
+  sendError?: string;
   // Assistant
   blocks?: ContentBlock[];
   // 通用

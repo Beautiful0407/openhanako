@@ -576,20 +576,36 @@ export function handleServerMessage(msg: any): void {
         break;
       }
       const text = typeof msg.message.text === 'string' ? msg.message.text : '';
-      useStore.getState().appendItem(sp, {
-        type: 'message',
-        data: {
-          id: msg.message.id || `user-${Date.now()}`,
-          role: 'user',
-          text,
-          textHtml: text ? renderMarkdown(text) : undefined,
-          timestamp: normalizeMessageTimestamp(msg.message.timestamp),
-          attachments: msg.message.attachments,
-          quotedText: msg.message.quotedText,
-          skills: msg.message.skills,
-          deskContext: msg.message.deskContext ?? undefined,
-        },
-      });
+      const clientMessageId = typeof msg.clientMessageId === 'string' && msg.clientMessageId
+        ? msg.clientMessageId
+        : typeof msg.message.clientMessageId === 'string' && msg.message.clientMessageId
+          ? msg.message.clientMessageId
+          : null;
+      const serverMessageId = typeof msg.message.id === 'string' && msg.message.id
+        ? msg.message.id
+        : typeof msg.message.sourceEntryId === 'string' && msg.message.sourceEntryId
+          ? msg.message.sourceEntryId
+          : undefined;
+      const data = {
+        id: clientMessageId || serverMessageId || `user-${Date.now()}`,
+        sourceEntryId: serverMessageId,
+        role: 'user' as const,
+        text,
+        textHtml: text ? renderMarkdown(text) : undefined,
+        timestamp: normalizeMessageTimestamp(msg.message.timestamp),
+        attachments: msg.message.attachments,
+        quotedText: msg.message.quotedText,
+        skills: msg.message.skills,
+        deskContext: msg.message.deskContext ?? undefined,
+      };
+      if (clientMessageId && useStore.getState().confirmOptimisticUserMessage(sp, clientMessageId, data)) {
+        bumpMessageLiveVersion(sp);
+        if (sp === useStore.getState().currentSessionPath) {
+          useStore.setState({ welcomeVisible: false });
+        }
+        break;
+      }
+      useStore.getState().appendItem(sp, { type: 'message', data });
       bumpMessageLiveVersion(sp);
       if (sp === useStore.getState().currentSessionPath) {
         useStore.setState({ welcomeVisible: false });
