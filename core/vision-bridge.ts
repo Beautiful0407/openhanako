@@ -18,6 +18,11 @@ const MAX_PRIMITIVE_REF_CHARS = 96;
 const VISION_ANALYSIS_TIMEOUT_MS = 120_000;
 const VISION_NOTES_FILE = "session-vision-notes.json";
 const DEFAULT_VISION_MAX_TOKENS = 4096;
+const AUXILIARY_VISION_SYSTEM_PROMPT = [
+  "You are Hana's auxiliary vision model.",
+  "Analyze the supplied image for the target model and follow the requested output format exactly.",
+  "Do not mention hidden reasoning, internal tools, or that another model will read your answer.",
+].join("\n");
 
 function normalizeUserRequest(text) {
   return String(text || "")
@@ -666,6 +671,7 @@ export class VisionBridge {
       apiKey: config.api_key,
       baseUrl: config.base_url,
       model: config.model,
+      systemPrompt: AUXILIARY_VISION_SYSTEM_PROMPT,
       messages: [{
         role: "user",
         content: [
@@ -705,6 +711,7 @@ export class VisionBridge {
       apiKey: config.api_key,
       baseUrl: config.base_url,
       model: config.model,
+      systemPrompt: AUXILIARY_VISION_SYSTEM_PROMPT,
       messages: [{
         role: "user",
         content: [

@@ -12,6 +12,10 @@ import {
 const EMPTY_AFTER_THINKING_MESSAGE = "模型未回复正文，请检查思考内容或稍后重试。";
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const CODEX_ACCOUNT_CLAIM_PATH = "https://api.openai.com/auth";
+const DEFAULT_CODEX_UTILITY_INSTRUCTIONS = [
+  "You are Hana's utility model.",
+  "Follow the user request exactly and return only the requested content.",
+].join("\n");
 
 /**
  * core/llm-client.js — 统一的非流式 LLM 调用入口
@@ -362,13 +366,14 @@ export async function callText({
       "chatgpt-account-id": accountId,
     };
     if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+    const codexInstructions = mergedSystem.trim() || DEFAULT_CODEX_UTILITY_INSTRUCTIONS;
     body = {
       model: modelId,
       store: false,
       stream: true,
       ...(explicitMaxTokens !== null && { max_output_tokens: explicitMaxTokens }),
       ...(temperature !== undefined && { temperature }),
-      ...(mergedSystem && { instructions: mergedSystem }),
+      instructions: codexInstructions,
       input: normalizedMessages,
     };
   } else if (api === "openai-responses") {

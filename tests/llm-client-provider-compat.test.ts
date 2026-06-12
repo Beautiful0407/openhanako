@@ -735,6 +735,32 @@ describe("callText provider-compat routing", () => {
     });
   });
 
+  it("always sends non-empty instructions for Codex Responses utility calls (#1664)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ output_text: "Codex OK" }),
+    } as any);
+
+    await callText({
+      api: "openai-codex-responses",
+      apiKey: "oauth-token",
+      baseUrl: "https://chatgpt.com/backend-api",
+      model: {
+        id: "gpt-5.4-codex",
+        provider: "openai-codex-oauth",
+        accountId: "acct_123",
+      },
+      messages: [{ role: "user", content: "Reply OK." }],
+      timeoutMs: 5_000,
+    } as any);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body.instructions).toEqual(expect.stringContaining("utility model"));
+    expect(body.instructions.trim().length).toBeGreaterThan(0);
+  });
+
   it("derives the Codex account id from the OAuth token when the model omits it", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
