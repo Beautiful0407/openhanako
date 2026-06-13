@@ -33,8 +33,30 @@ function readProviderCatalog() {
   return JSON.parse(fs.readFileSync(path.join(tmpDir, "provider-catalog.json"), "utf-8"));
 }
 
+function writeProviderCatalog(catalog) {
+  fs.writeFileSync(
+    path.join(tmpDir, "provider-catalog.json"),
+    JSON.stringify(catalog, null, 2) + "\n",
+    "utf-8",
+  );
+}
+
 function readProviderCatalogMeta() {
   return readProviderCatalog().meta || {};
+}
+
+function readLocalProviderPlugin(providerId) {
+  return JSON.parse(fs.readFileSync(
+    path.join(tmpDir, "provider-plugins", providerId, "providers", `${providerId}.json`),
+    "utf-8",
+  ));
+}
+
+function readLocalProviderManifest(providerId) {
+  return JSON.parse(fs.readFileSync(
+    path.join(tmpDir, "provider-plugins", providerId, "manifest.json"),
+    "utf-8",
+  ));
 }
 
 /** 创建一个 registry，注册一个测试插件 */
@@ -777,6 +799,116 @@ describe("saveProvider", () => {
     const persisted = readAddedModels();
     expect(persisted["new-provider"]).toBeDefined();
     expect(persisted["new-provider"].api_key).toBe("sk-new");
+  });
+
+  it("把新增自定义 provider 保存成本地 Provider Plugin，密钥只留在 catalog overlay", () => {
+    writeAddedModels({});
+    const reg = makeRegistry();
+
+    reg.saveProvider("new-provider", {
+      display_name: "New Provider",
+      auth_type: "api-key",
+      api_key: "sk-new",
+      headers: { "X-API-Key": "header-secret" },
+      base_url: "https://new.api.com/v1",
+      api: "openai-completions",
+      models: [
+        { id: "new-chat", name: "New Chat", reasoning: true, defaultThinkingLevel: "max" },
+      ],
+    });
+
+    const manifest = readLocalProviderManifest("new-provider");
+    expect(manifest).toMatchObject({
+      id: "new-provider",
+      type: "provider-plugin",
+      provider: "new-provider",
+    });
+
+    const plugin = readLocalProviderPlugin("new-provider");
+    expect(plugin).toMatchObject({
+      id: "new-provider",
+      displayName: "New Provider",
+      authType: "api-key",
+      defaultBaseUrl: "https://new.api.com/v1",
+      defaultApi: "openai-completions",
+      models: [
+        { id: "new-chat", name: "New Chat", reasoning: true, defaultThinkingLevel: "max" },
+      ],
+    });
+    expect(plugin).not.toHaveProperty("api_key");
+    expect(plugin).not.toHaveProperty("headers");
+
+    const catalog = readProviderCatalog().providers;
+    expect(catalog["new-provider"]).toEqual({
+      api_key: "sk-new",
+      headers: { "X-API-Key": "header-secret" },
+    });
+
+    const entry = reg.get("new-provider");
+    expect(entry).toMatchObject({
+      id: "new-provider",
+      displayName: "New Provider",
+      baseUrl: "https://new.api.com/v1",
+      api: "openai-completions",
+      source: { kind: "local-provider-plugin" },
+    });
+
+    expect(reg.getAllProvidersRaw()["new-provider"]).toMatchObject({
+      api_key: "sk-new",
+      headers: { "X-API-Key": "header-secret" },
+      base_url: "https://new.api.com/v1",
+      api: "openai-completions",
+      models: [
+        { id: "new-chat", name: "New Chat", reasoning: true, defaultThinkingLevel: "max" },
+      ],
+    });
+  });
+
+  it("把旧 catalog-only 自定义 provider 一次性迁移成本地 Provider Plugin", () => {
+    writeProviderCatalog({
+      catalogVersion: 2,
+      providers: {
+        "custom-old": {
+          display_name: "Custom Old",
+          auth_type: "api-key",
+          api_key: "sk-old",
+          headers: { Authorization: "Bearer old" },
+          base_url: "https://old.example/v1",
+          api: "openai-completions",
+          models: ["old-chat"],
+        },
+      },
+      capabilities: {},
+      meta: {},
+    });
+
+    const reg = new ProviderRegistry(tmpDir);
+    const entry = reg.get("custom-old");
+
+    expect(entry).toMatchObject({
+      id: "custom-old",
+      displayName: "Custom Old",
+      baseUrl: "https://old.example/v1",
+      api: "openai-completions",
+      source: { kind: "local-provider-plugin" },
+    });
+    expect(readLocalProviderPlugin("custom-old")).toMatchObject({
+      id: "custom-old",
+      displayName: "Custom Old",
+      defaultBaseUrl: "https://old.example/v1",
+      defaultApi: "openai-completions",
+      models: ["old-chat"],
+    });
+    expect(readProviderCatalog().providers["custom-old"]).toEqual({
+      api_key: "sk-old",
+      headers: { Authorization: "Bearer old" },
+    });
+    expect(reg.getAllProvidersRaw()["custom-old"]).toMatchObject({
+      api_key: "sk-old",
+      base_url: "https://old.example/v1",
+      api: "openai-completions",
+      models: ["old-chat"],
+    });
   });
 
   it("更新已有 provider 的配置（合并）", () => {

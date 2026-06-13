@@ -30,6 +30,14 @@ import {
 import { validateProviderRuntime } from "./media-runtime-contract.ts";
 import { capabilityKey, inferMediaProtocolId } from "./media-protocols.ts";
 import { ProviderCatalogStore } from "./provider-catalog.ts";
+import {
+  LocalProviderPluginStore,
+  isLocalProviderPlugin,
+  isSafeLocalProviderPluginId,
+  providerConfigHasLocalDefinition,
+  providerPluginToCatalogDefinition,
+  splitLocalProviderConfig,
+} from "./local-provider-plugin-store.ts";
 
 const _defaultModels = JSON.parse(
   fs.readFileSync(fromRoot("lib", "default-models.json"), "utf-8"),
@@ -185,17 +193,24 @@ function normalizeCredentialLane(lane, fallbackProviderId) {
   };
 }
 
-function normalizeMediaCapability(capability, entry) {
+function allowMediaModelWithoutProtocol(entry) {
+  const kind = entry?.source?.kind;
+  return kind === "user" || kind === "local-provider-plugin";
+}
+
+function normalizeMediaCapability(capability, entry, capabilityName) {
   if (!capability || typeof capability !== "object") return null;
   const models = [];
   const seen = new Set();
   for (const model of capability.models || []) {
-    const normalized = normalizeMediaModel(model, { protocolId: entry?.runtime?.protocolId });
+    const rawId = getModelId(model);
+    const inferredProtocolId = inferMediaProtocolId(entry.id, capabilityName, rawId, providerProtocolContext(entry));
+    const normalized = normalizeMediaModel(model, { protocolId: entry?.runtime?.protocolId || inferredProtocolId });
     if (!normalized) continue;
     if (seen.has(normalized.id)) {
       throw new Error(`Duplicate media model "${normalized.id}" in provider "${entry.id}"`);
     }
-    if (!normalized.protocolId) {
+    if (!normalized.protocolId && !allowMediaModelWithoutProtocol(entry)) {
       throw new Error(`Media model "${normalized.id}" in provider "${entry.id}" missing protocolId`);
     }
     seen.add(normalized.id);
@@ -229,7 +244,7 @@ function normalizeCapabilities(plugin, entry) {
   const media: any = {};
   for (const [rawKey, rawCapability] of Object.entries(rawMedia)) {
     const key = capabilityKey(rawKey);
-    const normalized = normalizeMediaCapability(rawCapability, entry);
+    const normalized = normalizeMediaCapability(rawCapability, entry, rawKey);
     if (normalized) media[key] = normalized;
     else if (rawCapability !== undefined) media[key] = rawCapability;
   }
@@ -272,7 +287,8 @@ function getModelType(providerId, modelEntry) {
 
 /** ProviderEntry → 推断上下文（唯一构造点，避免两个调用方各传一套字段） */
 function providerProtocolContext(entry) {
-  return { api: entry?.api, sourceKind: entry?.source?.kind };
+  const kind = entry?.source?.kind;
+  return { api: entry?.api, sourceKind: kind === "local-provider-plugin" ? "user" : kind };
 }
 
 function normalizeUserMediaModels(providerId, userConfig, capabilityName, declaredModels, entry) {
@@ -391,6 +407,10 @@ const BUILTIN_PLUGINS = [
  * @property {string} defaultBaseUrl
  * @property {string} defaultApi
  * @property {string} [authJsonKey] - OAuth provider 在 auth.json 中的 key（不同于 id 时）
+ * @property {Array<string|object>} [models] - 固定 chat 模型列表（本地 Provider Plugin 可直接声明）
+ * @property {object} [capabilities]
+ * @property {object} [runtime]
+ * @property {object} [source]
  */
 
 /**
@@ -411,9 +431,11 @@ export class ProviderRegistry {
   declare _addedModelsMtime: any;
   declare _authJsonCache: any;
   declare _authJsonMtime: any;
+  declare _builtinPlugins: any;
   declare _catalog: ProviderCatalogStore;
   declare _entries: any;
   declare _hanakoHome: any;
+  declare _localProviderPlugins: LocalProviderPluginStore;
   declare _plugins: any;
   /**
    * @param {string} hanakoHome - 用户数据根目录（如 ~/.hanako-dev）
@@ -421,8 +443,10 @@ export class ProviderRegistry {
   constructor(hanakoHome) {
     this._hanakoHome = hanakoHome;
     this._catalog = new ProviderCatalogStore(hanakoHome);
+    this._localProviderPlugins = new LocalProviderPluginStore(hanakoHome);
     /** @type {Map<string, ProviderPlugin>} id → plugin */
     this._plugins = new Map();
+    this._builtinPlugins = new Map();
     /** @type {Map<string, ProviderEntry>} id → entry（合并后） */
     this._entries = new Map();
 
@@ -435,7 +459,58 @@ export class ProviderRegistry {
     // 注册内置插件
     for (const plugin of BUILTIN_PLUGINS) {
       this._plugins.set(plugin.id, plugin);
+      this._builtinPlugins.set(plugin.id, plugin);
     }
+    this._reloadLocalProviderPlugins();
+  }
+
+  _isBuiltinPlugin(id, plugin) {
+    return this._builtinPlugins.get(id) === plugin;
+  }
+
+  _reloadLocalProviderPlugins() {
+    for (const [id, plugin] of [...this._plugins.entries()]) {
+      if (isLocalProviderPlugin(plugin)) this._plugins.delete(id);
+    }
+    for (const plugin of this._localProviderPlugins.readAll()) {
+      validateProviderRuntime(plugin.runtime);
+      this._plugins.set(plugin.id, plugin);
+    }
+  }
+
+  _mergeRawProviderConfig(providerId, overlay = {}) {
+    const plugin = this._plugins.get(providerId);
+    if (!isLocalProviderPlugin(plugin)) return cloneData(overlay || {});
+    return {
+      ...providerPluginToCatalogDefinition(plugin),
+      ...(overlay || {}),
+    };
+  }
+
+  _writeLocalProviderPlugin(providerId, config, existingPlugin = null) {
+    const { plugin, overlay } = splitLocalProviderConfig(providerId, config, existingPlugin);
+    validateProviderRuntime(plugin.runtime);
+    validateProviderModels(providerId, plugin.models, { baseUrl: plugin.defaultBaseUrl });
+    const saved = this._localProviderPlugins.writeProvider(providerId, plugin);
+    this._plugins.set(providerId, saved);
+    return overlay;
+  }
+
+  _migrateCatalogOnlyProvidersToLocalPlugins(userConfig) {
+    let changed = false;
+    const nextConfig = cloneData(userConfig || {});
+    for (const [providerId, config] of Object.entries(userConfig || {}) as [string, any][]) {
+      if (this._plugins.has(providerId)) continue;
+      if (!isSafeLocalProviderPluginId(providerId)) continue;
+      if (!providerConfigHasLocalDefinition(config)) continue;
+      nextConfig[providerId] = this._writeLocalProviderPlugin(providerId, config, null);
+      changed = true;
+    }
+    if (!changed) return userConfig;
+    this._saveAddedModels(nextConfig, {
+      localProviderPluginsMigratedAt: new Date().toISOString(),
+    });
+    return this._loadAddedModels();
   }
 
   /**
@@ -564,12 +639,13 @@ export class ProviderRegistry {
    */
   reload() {
     this._entries.clear();
-    const userConfig = this._loadAddedModels();
+    this._reloadLocalProviderPlugins();
+    const userConfig = this._migrateCatalogOnlyProvidersToLocalPlugins(this._loadAddedModels());
 
     // 1. 先处理所有已注册插件（内置 + 外部注册的）
     for (const [id, plugin] of this._plugins) {
       const uc = userConfig[id] || {};
-      this._entries.set(id, this._merge(plugin, uc, true));
+      this._entries.set(id, this._merge(plugin, uc, this._isBuiltinPlugin(id, plugin)));
     }
 
     // 2. 处理 Provider Catalog 中有但没有对应插件的条目（用户自定义 provider）
@@ -672,8 +748,7 @@ export class ProviderRegistry {
   }
 
   getChatModelIds(providerId) {
-    const userConfig = this._loadAddedModels();
-    const models = userConfig[providerId]?.models || [];
+    const models = this.getAllProvidersRaw()[providerId]?.models || [];
     return models
       .filter((model) => getModelType(providerId, model) === "chat")
       .map(getModelId)
@@ -686,7 +761,7 @@ export class ProviderRegistry {
     if (!entry) return [];
     const key = capabilityKey(capability);
     const declared = entry.capabilities?.media?.[key]?.models || [];
-    const userConfig = this._loadAddedModels()[providerId] || {};
+    const userConfig = this.getAllProvidersRaw()[providerId] || {};
     const userModels = normalizeUserMediaModels(providerId, userConfig, capability, declared, entry);
     const byId = new Map();
     for (const model of declared) byId.set(model.id, model);
@@ -845,7 +920,12 @@ export class ProviderRegistry {
    * @returns {string[]}
    */
   getDefaultModels(providerId) {
-    return _defaultModels[providerId] || [];
+    if (_defaultModels[providerId]) return _defaultModels[providerId];
+    const plugin = this._plugins.get(providerId);
+    if (Array.isArray(plugin?.models)) {
+      return plugin.models.map(getModelId).filter(Boolean);
+    }
+    return [];
   }
 
   /**
@@ -855,17 +935,7 @@ export class ProviderRegistry {
    * @param {{ base_url?: string, api?: string, display_name?: string, auth_type?: string }} overrides
    */
   setUserConfig(providerId, overrides) {
-    const userConfig = this._loadAddedModels();
-    userConfig[providerId] = { ...(userConfig[providerId] || {}), ...overrides };
-    this._saveAddedModels(userConfig);
-    // 更新内存中的 entry
-    this._entries.delete(providerId);
-    if (this._plugins.has(providerId)) {
-      const plugin = this._plugins.get(providerId);
-      this._entries.set(providerId, this._merge(plugin, userConfig[providerId], true));
-    } else {
-      this.reload(); // 自定义 provider 走完整 reload
-    }
+    this.saveProvider(providerId, overrides);
   }
 
   /**
@@ -874,16 +944,23 @@ export class ProviderRegistry {
    */
   remove(providerId) {
     const userConfig = this._loadAddedModels();
-    if (!Object.prototype.hasOwnProperty.call(userConfig, providerId)) return;
-    delete userConfig[providerId];
+    const plugin = this._plugins.get(providerId);
+    const hasCatalogEntry = Object.prototype.hasOwnProperty.call(userConfig, providerId);
+    const hasLocalPlugin = isLocalProviderPlugin(plugin);
+    if (!hasCatalogEntry && !hasLocalPlugin) return;
+    if (hasCatalogEntry) delete userConfig[providerId];
+    if (hasLocalPlugin) {
+      this._localProviderPlugins.removeProvider(providerId);
+      this._plugins.delete(providerId);
+    }
     const deletedProviders = this._catalog.getDeletedProviders();
     if (!deletedProviders.includes(providerId)) deletedProviders.push(providerId);
     this._saveAddedModels(userConfig, { deletedProviders });
     this._entries.delete(providerId);
     // 如果有内置插件声明，以默认值重建 entry
     if (this._plugins.has(providerId)) {
-      const plugin = this._plugins.get(providerId);
-      this._entries.set(providerId, this._merge(plugin, {}, true));
+      const remainingPlugin = this._plugins.get(providerId);
+      this._entries.set(providerId, this._merge(remainingPlugin, {}, this._isBuiltinPlugin(providerId, remainingPlugin)));
     }
   }
 
@@ -1014,18 +1091,25 @@ export class ProviderRegistry {
    * @returns {string[]}
    */
   getProviderModels(providerId) {
-    const userConfig = this._loadAddedModels();
-    const uc = userConfig[providerId];
+    const uc = this.getAllProvidersRaw()[providerId];
     if (!uc?.models || !Array.isArray(uc.models)) return [];
     return uc.models.map((m) => (typeof m === "object" ? m.id : m));
   }
 
   /**
-   * 返回 Provider Catalog 的原始 provider 数据（不经过插件合并）
+   * 返回运行时 provider 数据。
+   * Built-in/plugin provider 只返回用户 catalog overlay；本地 Provider Plugin 会把
+   * 插件声明合并进去，让模型同步和设置页仍能看到用户自定义 provider 的完整定义。
    * @returns {Record<string, any>}
    */
   getAllProvidersRaw() {
-    return this._loadAddedModels();
+    const userConfig = this._loadAddedModels();
+    const raw = cloneData(userConfig);
+    for (const [providerId, plugin] of this._plugins) {
+      if (!isLocalProviderPlugin(plugin)) continue;
+      raw[providerId] = this._mergeRawProviderConfig(providerId, raw[providerId] || {});
+    }
+    return raw;
   }
 
   _providerConfigIdForModelDefaults(providerId) {
@@ -1077,23 +1161,18 @@ export class ProviderRegistry {
    * @param {string | { id: string, name?: string, context?: number, maxOutput?: number }} model
    */
   addModel(providerId, model) {
-    const userConfig = this._loadAddedModels();
-    if (!userConfig[providerId]) userConfig[providerId] = {};
-    if (!Array.isArray(userConfig[providerId].models)) {
-      userConfig[providerId].models = [];
-    }
+    const rawProvider = this.getAllProvidersRaw()[providerId] || {};
+    const models = Array.isArray(rawProvider.models) ? rawProvider.models : [];
 
     const newId = typeof model === "object" ? model.id : model;
-    const exists = userConfig[providerId].models.some(
+    const exists = models.some(
       (m) => (typeof m === "object" ? m.id : m) === newId,
     );
     if (exists) return;
 
-    const nextModels = [...userConfig[providerId].models, model];
-    validateProviderModels(providerId, nextModels, { baseUrl: userConfig[providerId].base_url });
-    userConfig[providerId].models = nextModels;
-    this._saveAddedModels(userConfig);
-    this._entries.clear();
+    const nextModels = [...models, model];
+    validateProviderModels(providerId, nextModels, { baseUrl: rawProvider.base_url });
+    this.saveProvider(providerId, { models: nextModels });
   }
 
   /**
@@ -1102,15 +1181,13 @@ export class ProviderRegistry {
    * @param {string} modelId
    */
   removeModel(providerId, modelId) {
-    const userConfig = this._loadAddedModels();
-    const uc = userConfig[providerId];
+    const uc = this.getAllProvidersRaw()[providerId];
     if (!uc?.models || !Array.isArray(uc.models)) return;
 
-    uc.models = uc.models.filter(
+    const models = uc.models.filter(
       (m) => (typeof m === "object" ? m.id : m) !== modelId,
     );
-    this._saveAddedModels(userConfig);
-    this._entries.clear();
+    this.saveProvider(providerId, { models });
   }
 
   /**
@@ -1121,12 +1198,8 @@ export class ProviderRegistry {
    * @param {{ name?: string, context?: number, maxOutput?: number, image?: boolean, video?: boolean, reasoning?: boolean, defaultThinkingLevel?: string, compat?: object, toolUse?: object, visionCapabilities?: object }} meta
    */
   updateModelEntry(providerId, modelId, meta) {
-    const userConfig = this._loadAddedModels();
-    if (!userConfig[providerId]) userConfig[providerId] = {};
-    if (!Array.isArray(userConfig[providerId].models)) {
-      userConfig[providerId].models = [];
-    }
-    const uc = userConfig[providerId];
+    const rawProvider = this.getAllProvidersRaw()[providerId] || {};
+    const models = Array.isArray(rawProvider.models) ? rawProvider.models : [];
 
     // 兼容前端仍可能发来 vision 字段（过渡期）：转写为 image
     if (meta && typeof meta === "object" && meta.vision !== undefined && meta.image === undefined) {
@@ -1150,7 +1223,7 @@ export class ProviderRegistry {
     if (visionCapabilities) safe.visionCapabilities = visionCapabilities;
 
     let found = false;
-    const nextModels = uc.models.map((m) => {
+    const nextModels = models.map((m) => {
       const mid = typeof m === "object" ? m.id : m;
       if (mid !== modelId) return m;
       found = true;
@@ -1168,10 +1241,8 @@ export class ProviderRegistry {
       nextModels.push({ id: modelId, ...safe });
     }
 
-    validateProviderModels(providerId, nextModels, { baseUrl: uc.base_url });
-    uc.models = nextModels;
-    this._saveAddedModels(userConfig);
-    this._entries.clear();
+    validateProviderModels(providerId, nextModels, { baseUrl: rawProvider.base_url });
+    this.saveProvider(providerId, { models: nextModels });
   }
 
   _ensureMediaConfig(userConfig, providerId, capability) {
@@ -1261,14 +1332,20 @@ export class ProviderRegistry {
       providerData.headers = normalizeProviderHeaders(providerData.headers);
     }
     const nextProvider = { ...(userConfig[providerId] || {}), ...providerData };
+    const existingPlugin = this._plugins.get(providerId);
+    const persistAsLocalPlugin = isLocalProviderPlugin(existingPlugin) || !existingPlugin;
 
     if (seedDefaultModels && (!Array.isArray(nextProvider.models) || nextProvider.models.length === 0)) {
       const defaults = this.getDefaultModels(providerId);
       if (defaults.length > 0) nextProvider.models = [...defaults];
     }
 
-    validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
-    userConfig[providerId] = nextProvider;
+    if (persistAsLocalPlugin) {
+      userConfig[providerId] = this._writeLocalProviderPlugin(providerId, nextProvider, existingPlugin);
+    } else {
+      validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
+      userConfig[providerId] = nextProvider;
+    }
     const deletedProviders = this._catalog.getDeletedProviders()
       .filter((id) => id !== providerId);
     this._saveAddedModels(userConfig, { deletedProviders });
@@ -1291,7 +1368,7 @@ export class ProviderRegistry {
    * @returns {{ id: string, name?: string, type: string }[]}
    */
   getModelsByType(providerId, type) {
-    const raw = this._loadAddedModels();
+    const raw = this.getAllProvidersRaw();
     const models = raw[providerId]?.models || [];
     const results = [];
     for (const m of models) {
@@ -1312,7 +1389,7 @@ export class ProviderRegistry {
    * @returns {{ provider: string, id: string, name?: string, type: string }[]}
    */
   getAllModelsByType(type) {
-    const raw = this._loadAddedModels();
+    const raw = this.getAllProvidersRaw();
     const results = [];
     for (const providerId of Object.keys(raw)) {
       for (const entry of this.getModelsByType(providerId, type)) {

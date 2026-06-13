@@ -62,7 +62,7 @@ export function createProvidersRoute(engine: any) {
    */
   route.get("/providers/summary", async (c) => {
     const rawProviders = engine.providerRegistry.getAllProvidersRaw();
-    // 补全凭证和模型列表（getAllProvidersRaw 返回的是 Provider Catalog 原始 provider 数据）
+    // 补全凭证和模型列表（getAllProvidersRaw 返回 catalog overlay + 本地 Provider Plugin 定义）
     const providers: Record<string, any> = {};
     for (const [name, p] of Object.entries(rawProviders) as [string, any][]) {
       const entry = engine.providerRegistry.get(name);
@@ -104,10 +104,12 @@ export function createProvidersRoute(engine: any) {
 
     // 先处理 Provider Catalog 中的 provider（保持顺序）
     for (const [name, p] of Object.entries(providers)) {
+      const entry = provRegistry.get(name);
       const isOAuth = provRegistry.isOAuth(name);
       const authType = provRegistry.getAuthType?.(name) || (isOAuth ? "oauth" : "api-key");
       const oauthInfo = getOAuthLoginInfo(name);
-      // Provider Catalog 是用户模型列表的唯一信源
+      // ProviderRegistry 暴露的 runtime provider 数据是模型列表入口；
+      // 对本地 Provider Plugin，它已经合并了插件声明和 catalog overlay。
       const rawModels = p.models || [];
       const customModels = oauthCustom[name] || [];
       const allowsMissingApiKey = !!p.base_url && provRegistry.allowsMissingApiKey?.(name, p.base_url);
@@ -123,7 +125,7 @@ export function createProvidersRoute(engine: any) {
       result[name] = {
         type: isOAuth ? "oauth" : "api-key",
         auth_type: authType,
-        display_name: oauthInfo?.name || name,
+        display_name: oauthInfo?.name || entry?.displayName || name,
         base_url: p.base_url || "",
         api: p.api || "",
         api_key: maskSecretValue(p.api_key || ""),
