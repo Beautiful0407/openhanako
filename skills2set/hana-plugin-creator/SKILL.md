@@ -137,6 +137,8 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 
 - Static `tools/*.js` must export `name`, `description`, `parameters`, and `execute`.
 - React templates may use `@hana/plugin-runtime`, `@hana/plugin-sdk`, and `@hana/plugin-components`.
+- Static iframe resources belong under `assets/` and should be referenced with `hana.assets.url(path)` from browser code or the official `/api/plugins/{pluginId}/assets/...` path from the route shell. This includes CSS, JS, images, fonts, JSON, wasm, and browser-playable videos such as MP4/WebM/MOV. Do not inline large assets as a workaround.
+- Do not create custom plugin routes only to serve static files, such as `/api/video`, `/api/file`, or `/assets/*`, in new Agent-generated code. Existing plugins with static-file compatibility handlers may continue to run; if editing them, prefer adding the official `assets/` references without removing the existing handler unless the user explicitly asks for cleanup.
 - Dev authority is not a manifest permission. Hana grants it from the remembered dev install slot under `${HANA_HOME}/plugins-dev/`, and Agent dev tools are hidden until the user enables the dev tools setting.
 - Declare ordinary SDK needs in manifest `capabilities`, such as `session`, `agent`, `model.sample`, and `media.generate`. Put future high-risk needs in `sensitiveCapabilities`.
 - Prefer runtime helpers over raw bus calls for stable host capabilities: `createSession`, `getSession`, `listSessions`, `updateSession`, `sendSessionMessage`, `subscribeSessionEvents`, `createAgent`, `updateAgent`, `sampleText`, `listMediaProviders`, `resolveMediaModel`, `generateImage`, `generateMedia`, `generateVideo`, and `transcribeAudio`.
@@ -148,6 +150,7 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 - Local files returned to users must go through `toolCtx.stageFile({ sessionPath, filePath, label })`, then media details. Do not hand-build local `MEDIA:` or `file://` output.
 - Page and widget contributions require `"trust": "full-access"` and route-backed iframe UI.
 - Iframe browser code must call this plugin's own route handlers with `hana.api.fetch('route/path', init)` or `hana.api.url('route/path')`. Do not hard-code `/api/plugins/{pluginId}/...` in browser code, do not reuse `pluginIframeTicket` for XHR/fetch, and do not ask authors to manually pass `pluginSurfaceSession` unless documenting the low-level protocol.
+- `pluginIframeTicket` is only for iframe document loading. Do not append it to CSS, JS, image, font, video, or XHR URLs.
 - Pi SDK extension factories under `extensions/*.js` require `"trust": "full-access"`. They are for provider request rewriting, context filtering, and tool-call observation; use ordinary `tools/*.js` for Agent-callable actions.
 - After full-access plugin install, enable, or reload, Hana rebinds extension runners for idle sessions. Busy sessions pick up the change on the next safe rebuild, so do not promise that an in-flight reply will use freshly edited extension code.
 - Declare only the iframe host capabilities actually used.
@@ -178,3 +181,11 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 - Route shells should read `hana-theme` and `hana-css` query params, include the theme CSS link when present, and escape values inserted into HTML attributes.
 - Direct templates may use small no-build host messaging helpers, but should stay compatible with the public iframe protocol.
 - Direct templates include `hana.api.fetch()` for plugin route calls; preserve that helper when simplifying generated browser code.
+
+## Website-To-Plugin Conversion Rules
+
+- Split the source website into a route shell plus `assets/`. Keep HTML structure in the shell, compiled or copied JS/CSS/media in `assets/`, and business APIs in `routes/*.js`.
+- Large media such as MP4 backgrounds must stay as files under `assets/`; do not base64-inline them and do not stream them through custom plugin routes.
+- First paint must not auto-call LLM APIs. Trigger model calls only from an explicit user action, then call a plugin backend route with `hana.api.fetch(...)`; the backend route may use `sampleText()` or other runtime helpers.
+- After generating or editing a UI plugin, check for disallowed patterns before installing: `pluginIframeTicket` in asset/API URLs, hard-coded `/api/plugins/{pluginId}` in browser code, custom static-file routes in new code, missing `assets/` files, and page-load LLM calls.
+- Use the dev loop first. Install source into `${HANA_HOME}/plugins-dev/`, reload after edits, run diagnostics and scenarios, then package or install into the normal plugin directory only after the dev copy works. Existing installed plugins may include compatibility handlers; treat them as cleanup candidates, not broken plugins.

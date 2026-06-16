@@ -23,7 +23,9 @@ const js = hana.assets.url('dist/app.js');
 const logo = hana.assets.url('/images/logo.svg');
 ```
 
-The helper returns `/api/plugins/{pluginId}/assets/{path}` for the current iframe plugin. It accepts only relative, non-dotfile paths. Hana serves these resources through a path-scoped, HttpOnly asset session cookie, so Vite chunks, lazy imports, CSS, fonts, images, JSON, and wasm files should live under `assets/`. Do not put secrets, source files, or source maps in that directory.
+The helper returns `/api/plugins/{pluginId}/assets/{path}` for the current iframe plugin. It accepts only relative, non-dotfile paths. Hana serves these resources through a path-scoped, HttpOnly asset session cookie, so Vite chunks, lazy imports, CSS, fonts, images, JSON, wasm, and browser-playable video files such as MP4 should live under `assets/`. The host asset route supports byte ranges for video playback.
+
+Do not put secrets, source files, or source maps in `assets/`. Agent-generated plugins and newly edited plugin UI should not create custom route handlers just to serve static files such as CSS, JS, images, or MP4. Existing plugins that already expose static-file compatibility handlers remain loadable; treat the official `assets/` route plus `hana.assets.url(...)` as the documented contract for new work.
 
 ## Plugin API Routes
 

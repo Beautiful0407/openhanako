@@ -103,9 +103,10 @@ Use `hana.assets.url(path)` for browser-side references to files bundled under t
 
 ```ts
 const logoUrl = hana.assets.url('images/logo.svg');
+const videoUrl = hana.assets.url('videos/background.mp4');
 ```
 
-Hana uses a VS Code-like webview resource boundary. The iframe entry route is authenticated by the host, then the host issues a short-lived, HttpOnly cookie scoped only to `/api/plugins/{pluginId}/assets/`. Static JS, CSS, fonts, images, JSON, and wasm files are served from the plugin's own `assets/` directory through that path. Do not rely on `?token` or `pluginIframeTicket` being copied to Vite chunks, `React.lazy()` imports, modulepreload links, or CSS requests.
+Hana uses a VS Code-like webview resource boundary. The iframe entry route is authenticated by the host, then the host issues a short-lived, HttpOnly cookie scoped only to `/api/plugins/{pluginId}/assets/`. Static JS, CSS, fonts, images, JSON, wasm, and browser-playable video files are served from the plugin's own `assets/` directory through that path. Video assets support HTTP byte ranges for `<video>` playback and seeking. Do not rely on `?token` or `pluginIframeTicket` being copied to Vite chunks, `React.lazy()` imports, modulepreload links, CSS requests, or media requests.
 
 For a built UI, put compiled files under `assets/` and point the shell at the host-served resource URL:
 
@@ -114,6 +115,8 @@ For a built UI, put compiled files under `assets/` and point the shell at the ho
 ```
 
 Keep source files, secrets, config, and private data outside `assets/`. The host rejects path traversal, dotfiles, source maps, and non-web asset extensions by default. Use plugin routes or SDK host requests for dynamic data.
+
+Agent-generated plugins and scaffold updates should not create custom routes only to serve static resources such as CSS, JS, images, fonts, or MP4 files. Existing plugins that already use static-file compatibility handlers remain loadable. The documented contract for new work is to put those resources in `assets/` and reference them through `hana.assets.url(...)` or the same host-served assets path in the route shell. Treat `pluginIframeTicket` as a document-load credential only; do not manually append it to asset URLs.
 
 Use `@hana/plugin-components` for iframe UI:
 

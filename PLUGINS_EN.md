@@ -528,7 +528,7 @@ The host appends `hana-theme` and `hana-css` query parameters to the iframe URL.
 <link rel="stylesheet" href="${new URLSearchParams(location.search).get('hana-css')}">
 ```
 
-Static frontend resources belong under the plugin's `assets/` directory and are served by the Hana host at `/api/plugins/{pluginId}/assets/...`. This follows the same boundary idea as VS Code Webview resources: the entry route is opened with the local token or `pluginIframeTicket`; after a successful page response, the host issues a short-lived HttpOnly cookie scoped only to `/api/plugins/{pluginId}/assets/`. Vite split chunks, `React.lazy()` imports, CSS, fonts, images, JSON, wasm, and related static requests should not depend on `?token` or `pluginIframeTicket`.
+Static frontend resources belong under the plugin's `assets/` directory and are served by the Hana host at `/api/plugins/{pluginId}/assets/...`. This follows the same boundary idea as VS Code Webview resources: the entry route is opened with the local token or `pluginIframeTicket`; after a successful page response, the host issues a short-lived HttpOnly cookie scoped only to `/api/plugins/{pluginId}/assets/`. Vite split chunks, `React.lazy()` imports, CSS, fonts, images, JSON, wasm, and browser-playable video files such as MP4/WebM/MOV should not depend on `?token` or `pluginIframeTicket`. Video assets support HTTP byte ranges for `<video>` playback and seeking.
 
 When page scripts call the plugin's own dynamic route APIs, prefer `hana.api.fetch()` from `@hana/plugin-sdk`. It derives the current plugin id from the iframe route and sends the surface session credential that the host appended to the iframe URL:
 
@@ -550,7 +550,7 @@ const res = await fetch('/api/plugins/my-plugin/create-session', {
 });
 ```
 
-This credential only authorizes the plugin's own proxied route paths and carries no host scopes; the host strips it from the request before forwarding to the plugin handler. `pluginIframeTicket` is a one-time document-load credential — do not reuse it for XHR.
+This credential only authorizes the plugin's own proxied route paths and carries no host scopes; the host strips it from the request before forwarding to the plugin handler. `pluginIframeTicket` is a one-time document-load credential. Do not reuse it for XHR or static resource URLs.
 
 Browser code should prefer the SDK helper:
 
@@ -558,6 +558,7 @@ Browser code should prefer the SDK helper:
 import { hana } from '@hana/plugin-sdk';
 
 const iconUrl = hana.assets.url('images/icon.svg');
+const bgVideoUrl = hana.assets.url('videos/background.mp4');
 ```
 
 The server-side shell can also point directly at the same host-served path:
@@ -567,6 +568,8 @@ The server-side shell can also point directly at the same host-served path:
 ```
 
 Treat `assets/` as a public static root. Put only built files and public media there. Do not put source files, secrets, private config, or runtime data in it. The host rejects path traversal, dotfiles, source maps, and non-web static extensions by default. Use plugin route APIs or SDK host requests for dynamic data.
+
+Agent-generated plugins and newly edited plugin UI should not register extra `/api/file`, `/api/video`, `/assets/*`, or similar routes only to serve CSS, JS, images, fonts, or MP4 files. Existing plugins that already use static-file compatibility handlers remain loadable. The documented contract for new work is to put those resources in `assets/` and reference them with `hana.assets.url(...)` or the official host-served assets path in the route shell.
 
 React plugin UIs should use `@hana/plugin-components`. It provides Button, IconButton, TextInput, Textarea, Select, Switch, SettingRow, CardShell, List, EmptyState, and related primitives that match Hana's current controls:
 
@@ -1032,7 +1035,7 @@ If the installed version is newer than the highest compatible marketplace versio
 
 ## Forward Compatibility
 
-The system ignores unrecognized directories and manifest fields. Old plugins always work on new systems; new plugins on old systems simply have new contribution types silently ignored. `manifestVersion` remains optional for compatibility; new iframe UI plugins that declare `ui.hostCapabilities` should use `manifestVersion: 1` to match the host and SDK docs, but old plugins do not need a migration.
+The system ignores unrecognized directories and manifest fields. Old plugins always work on new systems; new plugins on old systems simply have new contribution types silently ignored. `manifestVersion` remains optional for compatibility; new iframe UI plugins that declare `ui.hostCapabilities` should use `manifestVersion: 1` to match the host and SDK docs, but old plugins do not need a migration. Existing plugins that created static-resource compatibility handlers for earlier asset limitations also remain allowed; diagnostics and Agent rules should treat them as cleanup candidates, not load blockers.
 
 ## Error Isolation
 
