@@ -6,6 +6,15 @@ import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 const exampleDir = path.join(root, "examples", "plugins", "sdk-showcase");
+const bundledSdkDir = path.join(root, "skills2set", "hana-plugin-creator", "assets", "sdk");
+
+function readBundledSdkFile(tarballName: string, fileName: string) {
+  return execFileSync("tar", [
+    "-xOzf",
+    path.join(bundledSdkDir, tarballName),
+    `package/${fileName}`,
+  ], { cwd: root, encoding: "utf-8" });
+}
 
 describe("plugin SDK examples and docs", () => {
   it("documents the SDK package map in a top-level guide", () => {
@@ -54,6 +63,20 @@ describe("plugin SDK examples and docs", () => {
     expect(readme).toContain("hana.assets.url");
   });
 
+  it("keeps hana-plugin-creator bundled SDK tarballs aligned with current runtime and protocol APIs", () => {
+    const runtimeTypes = readBundledSdkFile("hana-plugin-runtime-0.0.0.tgz", "dist/index.d.ts");
+    const runtimeReadme = readBundledSdkFile("hana-plugin-runtime-0.0.0.tgz", "README.md");
+    const protocolTypes = readBundledSdkFile("hana-plugin-protocol-0.0.0.tgz", "dist/index.d.ts");
+
+    expect(runtimeTypes).toContain("generateVideo");
+    expect(runtimeTypes).toContain("generateMedia");
+    expect(runtimeTypes).toContain("transcribeAudio");
+    expect(runtimeTypes).toContain("HanaProviderMediaMode");
+    expect(runtimeReadme).toContain("modes[].inputLimits.referenceImages");
+    expect(protocolTypes).toContain("PLUGIN_SURFACE_SESSION_HEADER");
+    expect(protocolTypes).toContain("PLUGIN_SURFACE_SESSION_QUERY");
+  });
+
   it("scaffolds provider contribution plugins with explicit media capabilities", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-provider-scaffold-"));
     try {
@@ -81,9 +104,45 @@ describe("plugin SDK examples and docs", () => {
       expect(provider).toContain('kind: "local-cli"');
       expect(provider).toContain('chat: { projection: "none" }');
       expect(provider).toContain("imageGeneration");
+      expect(provider).toContain("modes: [");
+      expect(provider).toContain("inputLimits: { referenceImages: { min: 0, max: 0 } }");
+      expect(provider).not.toContain("supportsEdit: true");
       expect(provider).toContain("file_glob");
       expect(readme).toContain("provider contribution");
       expect(readme).toContain("structured argument bindings");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("scaffolds React UI plugins for host-served assets without source maps", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-ui-scaffold-"));
+    try {
+      execFileSync("python3", [
+        path.join(root, "skills2set", "hana-plugin-creator", "scripts", "create_hana_plugin.py"),
+        "SDK Panel",
+        "--path",
+        tmpDir,
+        "--kind",
+        "ui",
+        "--audience",
+        "developer",
+        "--template",
+        "professional-react",
+        "--sdk-mode",
+        "workspace",
+      ], { cwd: root, stdio: "pipe" });
+
+      const pluginDir = path.join(tmpDir, "sdk-panel");
+      const route = fs.readFileSync(path.join(pluginDir, "routes", "ui.js"), "utf-8");
+      const viteConfig = fs.readFileSync(path.join(pluginDir, "vite.config.ts"), "utf-8");
+
+      expect(route).toContain("/api/plugins/${encodeURIComponent(ctx.pluginId)}/assets");
+      expect(route).toContain("${assetBase}/panel.js");
+      expect(route).not.toContain('app.get("/assets/*"');
+      expect(route).not.toContain("function serveAsset");
+      expect(viteConfig).toContain("sourcemap: false");
+      expect(viteConfig).not.toContain("sourcemap: true");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

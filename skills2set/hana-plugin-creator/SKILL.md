@@ -62,7 +62,7 @@ Behavior:
 
 - The preflight itself is JavaScript and uses only Node built-ins.
 - It finds Python through `HANA_PLUGIN_CREATOR_PYTHON`, `python3`, `python`, or Windows `py -3`.
-- It requires Python 3.10+ because the scaffold script uses modern Python syntax.
+- It requires Python 3.9+ because the scaffold script uses modern stdlib typing syntax.
 - If it returns `ok: false`, stop and show the user the `message` or `installGuidance`. Do not auto-install dependencies.
 - Use the same Python command that passed preflight for the scaffold examples below. The examples use `python3`.
 
@@ -143,7 +143,7 @@ python3 skills2set/hana-plugin-creator/scripts/create_hana_plugin.py "Jimeng Pro
 - `createAgent()` / `updateAgent()` can create plugin-owned hidden agents. Keep plugin-only characters and resources marked `visibility: "plugin_private"` unless the user expects them in the main Agent list.
 - Use `sendSessionMessage()` with `context.system`, `context.beforeUser`, or `context.afterUser` for per-turn RAG/world-lore/mood injection. Do not write JSONL history directly and do not mutate the visible user message to smuggle hidden context.
 - Use `sampleText()` for plugin-side reasoning tasks that do not need a full chat turn, such as query rewriting, summaries, classifiers, or routing.
-- Use `generateImage()` / `generateMedia()` for host media generation instead of calling provider internals directly. The media task pipeline owns progress, cancellation, delivery, and `SessionFile` registration. Image references should use `{ kind: "session_file", fileId }` instead of raw local paths. Image adapters accept multiple references by default; set `maxReferenceImages: 1` when an adapter only supports one reference. Use `transcribeAudio()` for ASR over registered `SessionFile` audio.
+- Use `generateImage()` / `generateMedia()` for host media generation instead of calling provider internals directly. The media task pipeline owns progress, cancellation, delivery, and `SessionFile` registration. Image references should use `{ kind: "session_file", fileId }` instead of raw local paths. Provider models must declare reference-image support on each mode with `modes[].inputLimits.referenceImages`, such as `{ min: 0, max: 0 }` for text-only generation or `{ min: 1, max: 1 }` for a single-reference mode. Use `transcribeAudio()` for ASR over registered `SessionFile` audio.
 - Local files returned to users must go through `toolCtx.stageFile({ sessionPath, filePath, label })`, then media details. Do not hand-build local `MEDIA:` or `file://` output.
 - Page and widget contributions require `"trust": "full-access"` and route-backed iframe UI.
 - Pi SDK extension factories under `extensions/*.js` require `"trust": "full-access"`. They are for provider request rewriting, context filtering, and tool-call observation; use ordinary `tools/*.js` for Agent-callable actions.

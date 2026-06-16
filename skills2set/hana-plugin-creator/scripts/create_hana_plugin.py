@@ -489,9 +489,25 @@ export const capabilities = {{
           id: {js_string(model_id)},
           displayName: {js_string(display_name + " Image")},
           protocolId: "local-cli-media",
-          inputs: ["text", "image"],
+          inputs: ["text"],
           outputs: ["image"],
-          supportsEdit: true,
+          modes: [
+            {{
+              id: "text2image",
+              label: "Text to image",
+              inputLimits: {{ referenceImages: {{ min: 0, max: 0 }} }},
+              parameterSchema: {{
+                type: "object",
+                properties: {{
+                  ratio: {{
+                    type: "string",
+                    enum: ["1:1", "16:9", "9:16"],
+                    default: "1:1",
+                  }},
+                }},
+              }},
+            }},
+          ],
         }},
       ],
     }},
@@ -502,19 +518,15 @@ export const capabilities = {{
 
 def create_route(display_name: str) -> str:
     return f"""
-import fs from "node:fs";
-import path from "node:path";
-
 export default function registerPluginUiRoutes(app, ctx) {{
   app.get("/page", (c) => c.html(renderShell(c, ctx, "page")));
   app.get("/widget", (c) => c.html(renderShell(c, ctx, "widget")));
-  app.get("/assets/*", (c) => serveAsset(c, ctx));
 }}
 
 function renderShell(c, ctx, surface) {{
   const hanaCss = c.req.query("hana-css") || "";
   const theme = c.req.query("hana-theme") || "inherit";
-  const base = `/api/plugins/${{ctx.pluginId}}`;
+  const assetBase = `/api/plugins/${{encodeURIComponent(ctx.pluginId)}}/assets`;
   const title = {js_string(display_name)};
 
   return `<!doctype html>
@@ -524,38 +536,13 @@ function renderShell(c, ctx, surface) {{
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${{escapeHtml(title)}}</title>
   ${{hanaCss ? `<link rel="stylesheet" href="${{escapeAttr(hanaCss)}}">` : ""}}
-  <link rel="stylesheet" href="${{base}}/assets/panel.css">
+  <link rel="stylesheet" href="${{assetBase}}/panel.css">
 </head>
 <body data-hana-theme="${{escapeAttr(theme)}}" data-surface="${{surface}}">
   <div id="root" data-surface="${{surface}}"></div>
-  <script type="module" src="${{base}}/assets/panel.js"></script>
+  <script type="module" src="${{assetBase}}/panel.js"></script>
 </body>
 </html>`;
-}}
-
-function serveAsset(c, ctx) {{
-  const rawName = c.req.path.split("/assets/")[1] || "";
-  const fileName = path.basename(decodeURIComponent(rawName));
-  if (!fileName) return c.text("Not found", 404);
-
-  const assetsDir = path.join(ctx.pluginDir, "assets");
-  const filePath = path.join(assetsDir, fileName);
-  if (!filePath.startsWith(assetsDir + path.sep) || !fs.existsSync(filePath)) {{
-    return c.text("Not found", 404);
-  }}
-
-  c.header("Content-Type", contentType(fileName));
-  c.header("Cache-Control", "no-cache");
-  return c.body(fs.readFileSync(filePath));
-}}
-
-function contentType(fileName) {{
-  if (fileName.endsWith(".js")) return "text/javascript; charset=utf-8";
-  if (fileName.endsWith(".css")) return "text/css; charset=utf-8";
-  if (fileName.endsWith(".svg")) return "image/svg+xml";
-  if (fileName.endsWith(".png")) return "image/png";
-  if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) return "image/jpeg";
-  return "application/octet-stream";
 }}
 
 function escapeAttr(value) {{
@@ -974,7 +961,7 @@ export default defineConfig({
   build: {
     outDir: 'assets',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
     lib: {
       entry: path.resolve(__dirname, 'ui', 'Panel.tsx'),
       formats: ['es'],
