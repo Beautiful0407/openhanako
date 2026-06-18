@@ -60,6 +60,7 @@ export interface SessionCapabilityDrift {
 
 export interface Session {
   path: string;
+  sessionId?: string | null;
   title: string | null;
   firstMessage: string;
   modified: string;

@@ -41,8 +41,6 @@ import { createStopTaskTool } from "../lib/tools/stop-task-tool.ts";
 import { createCurrentStatusTool } from "../lib/tools/current-status-tool.ts";
 import { createTerminalTool } from "../lib/tools/terminal-tool.ts";
 import { createWorkflowTool } from "../lib/tools/workflow-tool.ts";
-import { createCardGuideTool } from "../lib/tools/card-guide-tool.ts";
-import { createShowCardTool } from "../lib/tools/show-card-tool.ts";
 import { runCompatChecks } from "../lib/compat/index.ts";
 import { getPlatformPromptNote } from "./platform-prompt.ts";
 import { assertAgentConfigPatchYuan, getAgentConfigRepairState } from "./yuan-registry.ts";
@@ -141,8 +139,6 @@ export class Agent {
   declare _utilityModel: any;
   declare _webFetchTool: any;
   declare _webSearchTool: any;
-  declare _cardGuideTool: any;
-  declare _showCardTool: any;
   declare _workflowTool: any;
   declare agentDir: any;
   declare agentName: any;
@@ -234,8 +230,6 @@ export class Agent {
     this._subagentTool = null;
     this._subagentReplyTool = null;
     this._subagentCloseTool = null;
-    this._cardGuideTool = null;
-    this._showCardTool = null;
     this._workflowTool = null;
     this._currentStatusTool = null;
     this._terminalTool = null;
@@ -406,6 +400,9 @@ export class Agent {
         getSessionStreamFn: (sessionPath) => (
           this._cb?.getEngine?.()?.getSessionStreamFn?.(sessionPath)
         ),
+        getSessionIdForPath: (sessionPath) => (
+          this._cb?.getEngine?.()?.getSessionIdForPath?.(sessionPath)
+        ),
         onCompiled: () => {
           // _systemPrompt 是非 session 路径（巡检/cron/频道/DM/bridge owner 新建）
           // 共享的 cache，必须按 master 构建，不被 per-session 开关污染。
@@ -484,6 +481,7 @@ export class Agent {
       getVisionBridge: () => this._cb?.getEngine?.()?.getVisionBridge?.() || null,
       isVisionAuxiliaryEnabled: () => this._cb?.getEngine?.()?.isVisionAuxiliaryEnabled?.() === true,
       getHanakoHome: () => this._cb?.getEngine?.()?.hanakoHome,
+      getSessionIdForPath: (sessionPath) => this._cb?.getEngine?.()?.getSessionIdForPath?.(sessionPath) || null,
       registerSessionFile: (entry) => this._cb?.registerSessionFile?.(entry),
     });
     this._notifyTool = createNotifyTool({
@@ -594,6 +592,7 @@ export class Agent {
       setSubagentController: (id, ctrl) => this._cb?.setSubagentController?.(id, ctrl),
       removeSubagentController: (id) => this._cb?.removeSubagentController?.(id),
       getSessionPath: () => this._cb?.getCurrentSessionPath?.(),
+      getSessionIdForPath: (sp) => this._cb?.getEngine?.()?.getSessionIdForPath?.(sp) || null,
       // 父会话当前权限档：subagent 省略 access 参数时据此继承（Codex 式）。
       // 按显式 sessionPath 反查，不从焦点指针推导（状态归属唯一确定）。
       getSessionPermissionMode: (sp) => this._cb?.getSessionPermissionMode?.(sp) ?? null,
@@ -640,10 +639,6 @@ export class Agent {
       // journal 断点续跑：存储在 agent 数据目录下。
       getJournalDir: () => path.join(this.agentDir, "workflow-journals"),
     });
-
-    // 14. Interactive Card 工具（设计手册 + 渲染工具）
-    this._cardGuideTool = createCardGuideTool();
-    this._showCardTool = createShowCardTool();
 
     // 12. 组装 system prompt（按 master 构建，与 per-session 开关解耦）
     log(`  [agent] 9. buildSystemPrompt...`);
@@ -859,8 +854,6 @@ export class Agent {
       this._checkDeferredTool,
       this._currentStatusTool,
       this._terminalTool,
-      this._cardGuideTool,
-      this._showCardTool,
     ].filter(Boolean);
   }
   get tools() {

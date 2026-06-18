@@ -199,10 +199,12 @@ describe("HanaEngine.buildTools", () => {
       resolveUtilityConfig: vi.fn(() => ({ utility: { id: "target-utility" } })),
     };
     engine._usageLedger = { id: "ledger" };
+    engine.getSessionIdForPath = vi.fn(() => "sess_target_1");
 
     const result = engine.resolveUtilityConfig({ sessionPath });
 
     expect(engine.agentIdFromSessionPath).toHaveBeenCalledWith(sessionPath);
+    expect(engine.getSessionIdForPath).toHaveBeenCalledWith(sessionPath);
     expect(engine._configCoord.resolveUtilityConfig).toHaveBeenCalledWith({
       sessionPath,
       agentId: "target",
@@ -211,6 +213,7 @@ describe("HanaEngine.buildTools", () => {
       utility: { id: "target-utility" },
       usageAgentId: "target",
       usageSessionPath: sessionPath,
+      usageSessionId: "sess_target_1",
     });
   });
 

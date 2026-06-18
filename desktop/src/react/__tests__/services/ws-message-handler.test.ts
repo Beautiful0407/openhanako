@@ -236,6 +236,57 @@ describe('ws-message-handler session-scoped desktop events', () => {
     expect(first.data.sendStatus).toBeUndefined();
   });
 
+  it('session_user_message uses sessionId from the event when the session path moved before refresh', () => {
+    const sessionId = 'sess_ws_moved';
+    const oldPath = '/session/old-a.jsonl';
+    const newPath = '/session/new-a.jsonl';
+    useStore.setState({
+      sessions: [{
+        path: oldPath,
+        sessionId,
+        title: 'A',
+        firstMessage: 'hello',
+        modified: '2026-04-24T10:00:00.000Z',
+        messageCount: 1,
+        agentId: 'a1',
+        agentName: 'Hana',
+        cwd: null,
+      }],
+      sessionLocatorsById: { [sessionId]: { path: oldPath } },
+      chatSessions: {
+        [sessionId]: {
+          items: [],
+          hasMore: false,
+          loadingMore: false,
+          oldestId: undefined,
+          revision: null,
+        },
+      },
+    } as never);
+
+    handleServerMessage({
+      type: 'session_user_message',
+      sessionId,
+      sessionPath: newPath,
+      message: {
+        id: 'moved-u1',
+        text: 'moved path event',
+      },
+    });
+
+    const state = useStore.getState();
+    expect(state.sessionLocatorsById[sessionId]).toEqual({ path: newPath });
+    expect(state.chatSessions[sessionId]?.items).toHaveLength(1);
+    expect(state.chatSessions[sessionId]?.items[0]).toMatchObject({
+      type: 'message',
+      data: {
+        id: 'moved-u1',
+        text: 'moved path event',
+      },
+    });
+    expect(state.chatSessions[newPath]).toBeUndefined();
+  });
+
   it('voice_transcription_update 按 fileId 回填现有用户语音附件', () => {
     handleServerMessage({
       type: 'session_user_message',
@@ -284,6 +335,7 @@ describe('ws-message-handler session-scoped desktop events', () => {
       sessionPath: '/session/new.jsonl',
       session: {
         path: '/session/new.jsonl',
+        sessionId: 'sess_ws_created',
         title: '手机新会话',
         firstMessage: 'from mobile',
         modified: '2026-05-16T12:00:00.000Z',
@@ -296,11 +348,13 @@ describe('ws-message-handler session-scoped desktop events', () => {
 
     expect(useStore.getState().sessions[0]).toMatchObject({
       path: '/session/new.jsonl',
+      sessionId: 'sess_ws_created',
       title: '手机新会话',
       firstMessage: 'from mobile',
       messageCount: 1,
       cwd: '/workspace',
     });
+    expect(useStore.getState().sessionLocatorsById.sess_ws_created).toEqual({ path: '/session/new.jsonl' });
     expect(loadSessions).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(300);
@@ -843,8 +897,10 @@ describe('ws-message-handler turn_end side effects', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({
+      currentSessionId: null,
       currentSessionPath: '/session/a.jsonl',
       pendingNewSession: false,
+      sessionLocatorsById: {},
       sessions: [{
         path: '/session/a.jsonl',
         title: 'A',
@@ -954,6 +1010,47 @@ describe('ws-message-handler turn_end side effects', () => {
     expect(useStore.getState().inputFocusTrigger).toBe(0);
   });
 
+  it('passes sessionId from status events into stream buffer lifecycle', () => {
+    const sessionId = 'sess_status_stream';
+    vi.mocked(streamBufferManager.beginTurn).mockClear();
+    vi.mocked(streamBufferManager.finishTurn).mockClear();
+    useStore.setState({
+      currentSessionId: sessionId,
+      currentSessionPath: '/session/a-renamed.jsonl',
+      sessions: [{
+        path: '/session/a-renamed.jsonl',
+        sessionId,
+        title: 'A',
+        firstMessage: 'hello',
+        modified: '2026-04-24T10:00:00.000Z',
+        messageCount: 1,
+      }],
+      sessionLocatorsById: { [sessionId]: { path: '/session/a-renamed.jsonl' } },
+      streamingSessions: [],
+      activeSessionStreams: {},
+    } as never);
+
+    handleServerMessage({
+      type: 'status',
+      sessionId,
+      sessionPath: '/session/a-renamed.jsonl',
+      streamId: 'stream_status',
+      isStreaming: true,
+    });
+
+    expect(streamBufferManager.beginTurn).toHaveBeenCalledWith('/session/a-renamed.jsonl', sessionId);
+
+    handleServerMessage({
+      type: 'status',
+      sessionId,
+      sessionPath: '/session/a-renamed.jsonl',
+      streamId: 'stream_status',
+      isStreaming: false,
+    });
+
+    expect(streamBufferManager.finishTurn).toHaveBeenCalledWith('/session/a-renamed.jsonl', sessionId);
+  });
+
   it('background status=false does not request input focus', () => {
     useStore.setState({
       streamingSessions: ['/session/b.jsonl'],
@@ -1011,6 +1108,48 @@ describe('ws-message-handler turn_end side effects', () => {
       thumbnailUrl: 'https://old.example',
       thumbnailFresh: false,
     });
+  });
+
+  it('keys browser status by sessionId when the locator is known', () => {
+    vi.stubGlobal('window', { platform: {} });
+    useStore.setState({
+      currentSessionPath: '/session/a-renamed.jsonl',
+      currentSessionId: 'sess_browser_a',
+      sessions: [{
+        path: '/session/a-renamed.jsonl',
+        sessionId: 'sess_browser_a',
+      }],
+      sessionLocatorsById: {
+        sess_browser_a: { path: '/session/a-renamed.jsonl' },
+      },
+      browserBySession: {
+        '/session/a-renamed.jsonl': {
+          running: true,
+          url: 'https://old.example',
+          thumbnail: 'OLD_THUMB',
+          thumbnailCapturedAt: 111,
+          thumbnailUrl: 'https://old.example',
+          thumbnailFresh: true,
+        },
+      },
+    } as never);
+
+    handleServerMessage({
+      type: 'browser_status',
+      sessionPath: '/session/a-renamed.jsonl',
+      running: true,
+      url: 'https://new.example',
+    });
+
+    expect(useStore.getState().browserBySession.sess_browser_a).toMatchObject({
+      running: true,
+      url: 'https://new.example',
+      thumbnail: 'OLD_THUMB',
+      thumbnailCapturedAt: 111,
+      thumbnailUrl: 'https://old.example',
+      thumbnailFresh: false,
+    });
+    expect(useStore.getState().browserBySession['/session/a-renamed.jsonl']).toBeUndefined();
   });
 
   it('coalesces rapid turn_end session refreshes into one list request', async () => {

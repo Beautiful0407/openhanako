@@ -12,6 +12,7 @@ import { AttachedFilesBar } from '../components/input/AttachedFilesBar';
 import { ChatTranscript } from '../components/chat/ChatTranscript';
 import { handleServerMessage } from '../services/ws-message-handler';
 import { useStore } from '../stores';
+import { sessionScopedListIncludes, sessionScopedValue } from '../stores/session-slice';
 import { applyAgentIdentity, loadAvatars } from '../stores/agent-actions';
 import { loadMessages } from '../stores/session-actions';
 import { useI18n } from '../hooks/use-i18n';
@@ -141,10 +142,10 @@ export function QuickChatApp() {
     sessionPath ? state.chatSessions[sessionPath]?.items ?? EMPTY_SESSION_ITEMS : EMPTY_SESSION_ITEMS
   ), [sessionPath]));
   const isStreaming = useStore(useCallback((state) => (
-    !!sessionPath && state.streamingSessions.includes(sessionPath)
+    sessionScopedListIncludes(state, state.streamingSessions, sessionPath)
   ), [sessionPath]));
   const inlineError = useStore(useCallback((state) => (
-    sessionPath ? state.inlineErrors[sessionPath] ?? null : null
+    sessionPath ? sessionScopedValue(state, state.inlineErrors, sessionPath) ?? null : null
   ), [sessionPath]));
   const sessionTitle = useStore(useCallback((state) => {
     if (!sessionPath) return null;

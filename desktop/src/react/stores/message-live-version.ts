@@ -1,12 +1,26 @@
 const _messageLiveVersionBySession: Record<string, number> = {};
 
+let resolveSessionKey: ((sessionPath: string) => string | null | undefined) | null = null;
+
+function keyForSession(sessionPath: string): string {
+  return resolveSessionKey?.(sessionPath) || sessionPath;
+}
+
+export function configureMessageLiveVersionSessionKeyResolver(
+  resolver: ((sessionPath: string) => string | null | undefined) | null,
+): void {
+  resolveSessionKey = resolver;
+}
+
 export function readMessageLiveVersion(sessionPath: string): number {
-  return _messageLiveVersionBySession[sessionPath] ?? 0;
+  return _messageLiveVersionBySession[keyForSession(sessionPath)] ?? _messageLiveVersionBySession[sessionPath] ?? 0;
 }
 
 export function bumpMessageLiveVersion(sessionPath: string): number {
-  const next = (_messageLiveVersionBySession[sessionPath] ?? 0) + 1;
-  _messageLiveVersionBySession[sessionPath] = next;
+  const key = keyForSession(sessionPath);
+  const next = (_messageLiveVersionBySession[key] ?? _messageLiveVersionBySession[sessionPath] ?? 0) + 1;
+  _messageLiveVersionBySession[key] = next;
+  if (key !== sessionPath) delete _messageLiveVersionBySession[sessionPath];
   return next;
 }
 
@@ -17,5 +31,7 @@ export function clearMessageLiveVersion(sessionPath?: string): void {
     }
     return;
   }
+  const key = keyForSession(sessionPath);
+  delete _messageLiveVersionBySession[key];
   delete _messageLiveVersionBySession[sessionPath];
 }
