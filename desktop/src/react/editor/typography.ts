@@ -66,12 +66,8 @@ export function applyEditorTypography(
   root.style.setProperty('--editor-markdown-content-padding-x', `${markdown.contentPadding}px`);
   if (markdown.contentWidth === 'unlimited') {
     root.style.setProperty('--editor-markdown-content-width', 'none');
-    root.style.setProperty('--chat-column-width', 'none');
-    root.style.setProperty('--chat-input-column-width', 'none');
   } else {
     root.style.setProperty('--editor-markdown-content-width', `${markdown.contentWidth}px`);
-    root.style.setProperty('--chat-column-width', `${markdown.contentWidth}px`);
-    root.style.setProperty('--chat-input-column-width', 'calc(var(--chat-column-width) + var(--chat-input-column-extra))');
   }
 
   return typography;

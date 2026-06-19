@@ -8,6 +8,13 @@ import { SettingsRow } from '../components/SettingsRow';
 import { NumberInput } from '../components/NumberInput';
 import { StepSlider, type StepSliderOption } from '../components/StepSlider';
 import {
+  applyChatLayout,
+  mergeChatLayout,
+  normalizeChatLayout,
+  type ChatLayoutContentWidth,
+  type ChatLayoutPreferences,
+} from '../../chat/layout';
+import {
   applyEditorTypography,
   mergeEditorTypography,
   normalizeEditorTypography,
@@ -48,6 +55,7 @@ const VOICE_RECORD_SHORTCUT_DEFAULT = ['Ctrl', 'Shift', 'M'];
 
 type MarkdownTypographyKey = Exclude<keyof EditorMarkdownTypography, 'fontPreset'>;
 type MarkdownNumericTypographyKey = Exclude<MarkdownTypographyKey, 'contentWidth' | 'bodyFontSize'>;
+type ReadingContentWidth = EditorMarkdownContentWidth | ChatLayoutContentWidth;
 
 interface AppearancePrefs {
   currentTheme: string;
@@ -85,7 +93,7 @@ const BODY_FONT_SIZE_OFFSETS = [-2, -1, 0, 1, 2] as const;
 
 const CONTENT_WIDTH_STEPS: Array<{
   value: string;
-  width: EditorMarkdownContentWidth;
+  width: ReadingContentWidth;
   labelKey?: string;
 }> = [
   { value: '640', width: 640 },
@@ -127,7 +135,11 @@ export function InterfaceTab() {
     () => normalizeEditorTypography(settingsConfig?.editor),
     [settingsConfig?.editor],
   );
-  const contentWidthOptions: Array<StepSliderOption & { width: EditorMarkdownContentWidth }> = CONTENT_WIDTH_STEPS.map(option => {
+  const chatLayout = useMemo(
+    () => normalizeChatLayout(settingsConfig?.chat),
+    [settingsConfig?.chat],
+  );
+  const contentWidthOptions: Array<StepSliderOption & { width: ReadingContentWidth }> = CONTENT_WIDTH_STEPS.map(option => {
     const label = option.labelKey ? t(option.labelKey) : option.value;
     const valueLabel = option.width === 'unlimited' ? t('settings.appearance.readingWidthUnlimited') : option.value;
     return {
@@ -176,6 +188,26 @@ export function InterfaceTab() {
     useSettingsStore.setState({ settingsConfig: previousConfig });
     applyEditorTypography(restored);
     platform?.settingsChanged?.('editor-typography-changed', { editor: restored });
+  };
+
+  const saveChatLayout = async (patch: Partial<ChatLayoutPreferences>) => {
+    const previousConfig = useSettingsStore.getState().settingsConfig || {};
+    const previousChat = previousConfig.chat;
+    const next = mergeChatLayout(previousChat, patch);
+    useSettingsStore.setState({ settingsConfig: { ...previousConfig, chat: next } });
+    applyChatLayout(next);
+    platform?.settingsChanged?.('chat-layout-changed', { chat: next });
+
+    const saved = await autoSaveConfig({ chat: next }, { silent: true });
+    if (saved) {
+      useSettingsStore.getState().showToast(t('settings.autoSaved'), 'success');
+      return;
+    }
+
+    const restored = normalizeChatLayout(previousChat);
+    useSettingsStore.setState({ settingsConfig: previousConfig });
+    applyChatLayout(restored);
+    platform?.settingsChanged?.('chat-layout-changed', { chat: restored });
   };
 
   const saveHardwareAcceleration = async (next: boolean) => {
@@ -270,17 +302,35 @@ export function InterfaceTab() {
             </button>
           ))}
         </div>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.appearance.readingLayout')}>
         <SettingsRow
-          label={t('settings.appearance.readingWidth')}
-          hint={t('settings.appearance.readingWidthHint')}
+          label={t('settings.appearance.documentWidth')}
+          hint={t('settings.appearance.documentWidthHint')}
           control={
             <StepSlider
-              ariaLabel={t('settings.appearance.readingWidth')}
+              ariaLabel={t('settings.appearance.documentWidth')}
               options={contentWidthOptions}
               value={String(editorTypography.markdown.contentWidth)}
               onChange={(value) => {
                 const option = contentWidthOptions.find(item => item.value === value);
-                if (option) saveEditorTypography({ contentWidth: option.width });
+                if (option) saveEditorTypography({ contentWidth: option.width as EditorMarkdownContentWidth });
+              }}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.chatWidth')}
+          hint={t('settings.appearance.chatWidthHint')}
+          control={
+            <StepSlider
+              ariaLabel={t('settings.appearance.chatWidth')}
+              options={contentWidthOptions}
+              value={String(chatLayout.contentWidth)}
+              onChange={(value) => {
+                const option = contentWidthOptions.find(item => item.value === value);
+                if (option) saveChatLayout({ contentWidth: option.width as ChatLayoutContentWidth });
               }}
             />
           }
