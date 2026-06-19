@@ -340,6 +340,10 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   // #1624：当前 session 的工具能力漂移提示（服务端 restore 时算好，前端只消费）
   const capabilityDrift = useStore(s => s.currentSessionPath ? (sessionScopedValue(s, s.capabilityDriftBySession, s.currentSessionPath) ?? null) : null);
   const capabilityRefreshing = useStore(s => sessionScopedListIncludes(s, s.capabilityRefreshingSessions, s.currentSessionPath));
+  const compactingStatus = capabilityRefreshing || compacting;
+  const compactingStatusLabel = capabilityRefreshing
+    ? t('session.capabilityDrift.refreshing')
+    : t('chat.compacting');
   const currentModelInfo = sessionModelInfo || globalModelInfo;
   const availableThinkingLevels = useMemo(
     () => getModelThinkingLevels(currentModelInfo),
@@ -1800,8 +1804,8 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       <InputStatusBars
         slashBusy={slashBusy}
         slashBusyLabel={slashCommands.find(c => c.name === slashBusy)?.busyLabel || t('common.executing')}
-        compacting={compacting}
-        compactingLabel={t('chat.compacting')}
+        compacting={compactingStatus}
+        compactingLabel={compactingStatusLabel}
         screenshotBusy={screenshotBusy}
         screenshotLabel={t('common.screenshotInProgress')}
         screenshotPageLabel={screenshotProgress && screenshotProgress.totalPages > 0
