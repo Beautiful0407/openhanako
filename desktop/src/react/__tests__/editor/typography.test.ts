@@ -116,8 +116,8 @@ describe('editor typography settings', () => {
     expect(style.getPropertyValue('--editor-markdown-line-height')).toBe('1.8');
     expect(style.getPropertyValue('--editor-markdown-content-padding-x')).toBe('28px');
     expect(style.getPropertyValue('--editor-markdown-content-width')).toBe('800px');
-    expect(style.getPropertyValue('--chat-column-width')).toBe('800px');
-    expect(style.getPropertyValue('--chat-input-column-width')).toBe('calc(var(--chat-column-width) + var(--chat-input-column-extra))');
+    expect(style.getPropertyValue('--chat-column-width')).toBe('');
+    expect(style.getPropertyValue('--chat-input-column-width')).toBe('');
   });
 
   it('maps unlimited reading width to unrestricted CSS max-width values', () => {
@@ -133,8 +133,8 @@ describe('editor typography settings', () => {
 
     const style = root.style;
     expect(style.getPropertyValue('--editor-markdown-content-width')).toBe('none');
-    expect(style.getPropertyValue('--chat-column-width')).toBe('none');
-    expect(style.getPropertyValue('--chat-input-column-width')).toBe('none');
+    expect(style.getPropertyValue('--chat-column-width')).toBe('');
+    expect(style.getPropertyValue('--chat-input-column-width')).toBe('');
   });
 
   it('uses the editor typography variables for markdown preview font size and weight', () => {

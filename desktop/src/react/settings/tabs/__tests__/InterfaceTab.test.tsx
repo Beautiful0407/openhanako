@@ -139,17 +139,25 @@ describe('InterfaceTab appearance state', () => {
     expect(screen.getByTitle('settings.fonts.followReading')).toBeTruthy();
   });
 
-  it('renders reading width and body size offset controls in the appearance font section', () => {
+  it('renders document width, chat width, and body size offset controls in a reading layout section', () => {
     render(React.createElement(InterfaceTab));
 
-    const widthSlider = screen.getByRole('slider', { name: 'settings.appearance.readingWidth' }) as HTMLInputElement;
+    const documentWidthSlider = screen.getByRole('slider', { name: 'settings.appearance.documentWidth' }) as HTMLInputElement;
+    const chatWidthSlider = screen.getByRole('slider', { name: 'settings.appearance.chatWidth' }) as HTMLInputElement;
     const bodySlider = screen.getByRole('slider', { name: 'settings.appearance.bodyFontSizeOffset' }) as HTMLInputElement;
 
-    expect(screen.getByText('settings.appearance.readingWidth')).toBeTruthy();
-    expect(widthSlider.min).toBe('0');
-    expect(widthSlider.max).toBe('3');
-    expect(widthSlider.step).toBe('1');
-    expect(widthSlider.value).toBe('1');
+    expect(screen.getByText('settings.appearance.readingLayout')).toBeTruthy();
+    expect(screen.getByText('settings.appearance.documentWidth')).toBeTruthy();
+    expect(documentWidthSlider.min).toBe('0');
+    expect(documentWidthSlider.max).toBe('3');
+    expect(documentWidthSlider.step).toBe('1');
+    expect(documentWidthSlider.value).toBe('1');
+
+    expect(screen.getByText('settings.appearance.chatWidth')).toBeTruthy();
+    expect(chatWidthSlider.min).toBe('0');
+    expect(chatWidthSlider.max).toBe('3');
+    expect(chatWidthSlider.step).toBe('1');
+    expect(chatWidthSlider.value).toBe('1');
 
     expect(screen.getByText('settings.appearance.bodyFontSizeOffset')).toBeTruthy();
     expect(bodySlider.min).toBe('0');
