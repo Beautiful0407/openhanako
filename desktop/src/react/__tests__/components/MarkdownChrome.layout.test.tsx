@@ -7,6 +7,13 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChapterRail } from '../../components/preview/MarkdownChrome';
 
+function readMarkdownChromeSource(): string {
+  return fs.readFileSync(
+    path.join(process.cwd(), 'desktop/src/react/components/preview/MarkdownChrome.tsx'),
+    'utf8',
+  );
+}
+
 function readMarkdownChromeCss(): string {
   return fs.readFileSync(
     path.join(process.cwd(), 'desktop/src/react/components/preview/MarkdownChrome.module.css'),
@@ -14,15 +21,44 @@ function readMarkdownChromeCss(): string {
   );
 }
 
-function cssBlock(css: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return css.match(new RegExp(`${escaped}\\s*\\{(?<body>[^}]*)\\}`))?.groups?.body || '';
-}
-
 describe('MarkdownChrome chapter rail layout', () => {
   afterEach(() => cleanup());
 
-  it('renders one hover chapter list instead of duplicating a fixed dock', () => {
+  it('uses the shared timeline rail component instead of a private chapter popover', () => {
+    const source = readMarkdownChromeSource();
+    const css = readMarkdownChromeCss();
+
+    expect(source).toContain('TimelineRailNavigator');
+    expect(source).toContain('measureTimelineMarkerWidthEm');
+    expect(source).not.toContain('chapterTrigger');
+    expect(source).not.toContain('chapterPopover');
+    expect(css).not.toContain('.chapterTrigger');
+    expect(css).not.toContain('.chapterPopover');
+  });
+
+  it('renders timeline rail markers with the same line/label structure as chat', () => {
+    render(
+      <ChapterRail
+        headings={[
+          { id: 'short', level: 1, text: 'Short', line: 0, offset: 0 },
+          { id: 'long', level: 2, text: 'A much longer heading for marker width', line: 8, offset: 120 },
+        ]}
+        activeHeadingId="long"
+        railVisible
+        onJump={vi.fn()}
+      />,
+    );
+
+    const nav = screen.getByRole('navigation', { name: 'Markdown sections' });
+    expect(nav.className).toContain('timelineNav');
+    expect(nav.className).toContain('timelineNavLeft');
+    expect(nav.className).toContain('timelineNavVisible');
+    expect(screen.getByRole('button', { name: 'Jump to Short' }).querySelector('[class*="timelineLine"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Jump to A much longer heading for marker width' }).className).toContain('timelineMarkerActive');
+    expect(screen.getAllByText(/Short|A much longer heading/)).toHaveLength(2);
+  });
+
+  it('keeps the rail hidden until the preview hover zone marks it visible', () => {
     render(
       <ChapterRail
         headings={[{ id: 'intro', level: 1, text: 'Intro', line: 0, offset: 0 }]}
@@ -31,20 +67,6 @@ describe('MarkdownChrome chapter rail layout', () => {
       />,
     );
 
-    expect(screen.getAllByText('Intro')).toHaveLength(1);
-  });
-
-  it('keeps a generous hover target while drawing only a vertical line', () => {
-    const css = readMarkdownChromeCss();
-    const trigger = cssBlock(css, '.chapterTrigger');
-    const line = cssBlock(css, '.chapterTrigger span');
-
-    expect(trigger).toMatch(/width:\s*34px/);
-    expect(trigger).toMatch(/height:\s*132px/);
-    expect(trigger).toMatch(/border:\s*0/);
-    expect(trigger).toMatch(/background:\s*transparent/);
-    expect(line).toMatch(/width:\s*4px/);
-    expect(line).toMatch(/height:\s*96px/);
-    expect(line).toMatch(/box-shadow:\s*0 0 0 1px var\(--bg-card/);
+    expect(screen.getByRole('navigation', { name: 'Markdown sections' }).className).not.toContain('timelineNavVisible');
   });
 });

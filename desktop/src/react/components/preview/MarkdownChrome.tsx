@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../stores';
 import type { DeskFile, PreviewItem } from '../../types';
+import { TimelineRailNavigator, type TimelineRailItem } from '../shared/TimelineRailNavigator';
+import { measureTimelineMarkerWidthEm } from '../shared/timeline-marker-width';
 import {
   extractMarkdownLinks,
   formatMarkdownPropertyValue,
@@ -105,37 +107,33 @@ function knownTreeFileStatus(root: string, tree: Record<string, DeskFile[]>, fil
 export function ChapterRail({
   headings,
   activeHeadingId,
+  railVisible = false,
   onJump,
 }: {
   headings: MarkdownHeading[];
   activeHeadingId: string | null;
+  railVisible?: boolean;
   onJump: (heading: MarkdownHeading) => void;
 }) {
   if (headings.length === 0) return null;
-  const list = (
-    <ol className={styles.chapterList}>
-      {headings.map(heading => (
-        <li key={`${heading.id}:${heading.line}`} style={{ '--chapter-depth': heading.level - 1 } as CSSProperties}>
-          <button
-            type="button"
-            className={`${styles.chapterButton}${heading.id === activeHeadingId ? ` ${styles.chapterButtonActive}` : ''}`}
-            onClick={() => onJump(heading)}
-            title={heading.text}
-          >
-            {heading.text}
-          </button>
-        </li>
-      ))}
-    </ol>
-  );
+  const items: Array<TimelineRailItem<MarkdownHeading>> = headings.map(heading => ({
+    id: heading.id,
+    label: heading.text,
+    markerWidthEm: measureTimelineMarkerWidthEm(Array.from(heading.text).length),
+    payload: heading,
+  }));
 
   return (
-    <nav className={styles.chapterRail} aria-label="Markdown sections">
-      <button type="button" className={styles.chapterTrigger} aria-label="Show sections">
-        <span />
-      </button>
-      <div className={styles.chapterPopover}>{list}</div>
-    </nav>
+    <TimelineRailNavigator
+      items={items}
+      active
+      activeId={activeHeadingId}
+      railVisible={railVisible}
+      side="left"
+      ariaLabel="Markdown sections"
+      jumpLabel={item => `Jump to ${item.label}`}
+      onJump={item => onJump(item.payload)}
+    />
   );
 }
 

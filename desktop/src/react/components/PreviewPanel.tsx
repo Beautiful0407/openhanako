@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useStore } from '../stores';
 import { selectPreviewItems, selectActiveTabId, selectMarkdownPreviewIds, selectPreviewReadingPositions } from '../stores/preview-slice';
 import { setMarkdownPreviewActive, upsertPreviewItem, updatePreviewReadingPosition } from '../stores/preview-actions';
@@ -34,6 +34,9 @@ import type { PreviewScrollSnapshot } from '../../../../shared/preview-reading-p
 import previewStyles from './Preview.module.css';
 
 const EDITABLE_TYPES = new Set(['markdown', 'code', 'csv']);
+const CHAPTER_RAIL_HOVER_ZONE_PX = 64;
+const CHAPTER_RAIL_TOP_OFFSET_PX = 76;
+const CHAPTER_RAIL_HEIGHT_RATIO = 0.5;
 
 function isEditable(previewItem: PreviewItem | null): boolean {
   if (!previewItem) return false;
@@ -150,6 +153,7 @@ export function PreviewPanel() {
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
   const [findCount, setFindCount] = useState(0);
+  const [chapterRailVisible, setChapterRailVisible] = useState(false);
   const previewBodyRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<PreviewEditorHandle | null>(null);
   const previewScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -291,6 +295,20 @@ export function PreviewPanel() {
     setActiveHeadingId(heading.id);
   }, [editable]);
 
+  const handleBodyShellPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const xFromLeft = event.clientX - rect.left;
+    const yFromTop = event.clientY - rect.top;
+    const inRailX = xFromLeft >= 0 && xFromLeft <= CHAPTER_RAIL_HOVER_ZONE_PX;
+    const inRailY = yFromTop >= CHAPTER_RAIL_TOP_OFFSET_PX
+      && yFromTop <= CHAPTER_RAIL_TOP_OFFSET_PX + rect.height * CHAPTER_RAIL_HEIGHT_RATIO;
+    setChapterRailVisible(inRailX && inRailY);
+  }, []);
+
+  const handleBodyShellPointerLeave = useCallback(() => {
+    setChapterRailVisible(false);
+  }, []);
+
   // DOM 模式选区捕获（非编辑模式下 mouseup 时检测选中文本）
   const handleMouseUp = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     if (!previewItem || editable) return;
@@ -389,11 +407,17 @@ export function PreviewPanel() {
       <div className="resize-handle resize-handle-left" id="previewResizeHandle"></div>
       <div className={previewStyles.previewPanelInner} data-preview-panel-inner="">
         <TabBar />
-        <div className={previewStyles.previewBodyShell} data-preview-body-shell="">
+        <div
+          className={previewStyles.previewBodyShell}
+          data-preview-body-shell=""
+          onPointerMove={handleBodyShellPointerMove}
+          onPointerLeave={handleBodyShellPointerLeave}
+        >
           {previewOpen && previewItem && markdownFile && (
             <ChapterRail
               headings={markdownHeadings}
               activeHeadingId={activeHeadingId}
+              railVisible={chapterRailVisible}
               onJump={handleJumpHeading}
             />
           )}
