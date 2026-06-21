@@ -792,6 +792,21 @@ export class HanaEngine {
     }
     return this._resourceWatchRegistry.retain(resource);
   }
+  subscribeResourceWatch(input) {
+    if (!this._resourceWatchRegistry || typeof this._resourceWatchRegistry.subscribe !== "function") {
+      throw new Error("resource watch unavailable");
+    }
+    return this._resourceWatchRegistry.subscribe(input);
+  }
+  unsubscribeResourceWatch(subscriptionId) {
+    if (!this._resourceWatchRegistry || typeof this._resourceWatchRegistry.unsubscribe !== "function") {
+      throw new Error("resource watch unavailable");
+    }
+    return this._resourceWatchRegistry.unsubscribe(subscriptionId);
+  }
+  resourceWatchDiagnostics() {
+    return this._resourceWatchRegistry?.diagnostics?.() || { subscriptions: 0, watches: [] };
+  }
   getResource(resourceId) { return this.getResourceService().getResource(resourceId); }
   resolveResourceContent(resourceId) { return this.getResourceService().resolveContent(resourceId); }
   serializeSessionFile(file) { return serializeSessionFile(file, { runtimeContext: this.getRuntimeContext() }); }

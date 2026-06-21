@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { ResourceEventBus } from "./resource-event-bus.ts";
 import { normalizeResourceRef, resourceKeyForRef } from "./resource-refs.ts";
 import type { ResourceRef } from "./types.ts";
@@ -30,8 +31,17 @@ type Entry = {
   pendingPath: string | null;
 };
 
+type Subscription = {
+  subscriptionId: string;
+  purpose: string | null;
+  sessionPath: string | null;
+  resourceKeys: string[];
+  releases: Array<() => void>;
+};
+
 export class ResourceWatchRegistry {
   declare entries: Map<string, Entry>;
+  declare subscriptions: Map<string, Subscription>;
   declare debounceMs: number;
   declare watchPath: WatchPath;
   declare statPath: StatPath;
@@ -44,19 +54,66 @@ export class ResourceWatchRegistry {
     statPath = defaultStatPath,
   }: Options) {
     this.entries = new Map();
+    this.subscriptions = new Map();
     this.debounceMs = debounceMs;
     this.watchPath = watchPath;
     this.statPath = statPath;
     this.eventBus = new ResourceEventBus({ emit: emitEvent });
   }
 
-  retain(input: unknown): () => void {
-    const ref = normalizeResourceRef(input);
-    if (ref.kind !== "local-file") {
-      throw new Error(`ResourceWatchRegistry only supports local-file watches for now: ${ref.kind}`);
+  subscribe(input: { resources?: unknown[]; resource?: unknown; purpose?: string | null; sessionPath?: string | null }) {
+    const resources = Array.isArray(input?.resources)
+      ? input.resources
+      : input?.resource
+        ? [input.resource]
+        : [];
+    if (!resources.length) throw new Error("ResourceWatchRegistry subscription requires resources");
+
+    const releases: Array<() => void> = [];
+    const resourceKeys: string[] = [];
+    try {
+      for (const resource of resources) {
+        const normalized = this.normalizeWatchResource(resource);
+        releases.push(this.retain(normalized.ref));
+        resourceKeys.push(normalized.resourceKey);
+      }
+    } catch (err) {
+      for (const release of releases.splice(0).reverse()) release();
+      throw err;
     }
-    const filePath = path.isAbsolute(ref.path) ? path.normalize(ref.path) : path.resolve(ref.path);
-    const resourceKey = resourceKeyForRef({ kind: "local-file", path: filePath });
+
+    const subscriptionId = crypto.randomUUID();
+    this.subscriptions.set(subscriptionId, {
+      subscriptionId,
+      purpose: typeof input?.purpose === "string" ? input.purpose : null,
+      sessionPath: typeof input?.sessionPath === "string" ? input.sessionPath : null,
+      resourceKeys,
+      releases,
+    });
+    return { subscriptionId, resourceKeys };
+  }
+
+  unsubscribe(subscriptionId: string): boolean {
+    const subscription = this.subscriptions.get(subscriptionId);
+    if (!subscription) return false;
+    this.subscriptions.delete(subscriptionId);
+    for (const release of subscription.releases.reverse()) release();
+    return true;
+  }
+
+  diagnostics() {
+    return {
+      subscriptions: this.subscriptions.size,
+      watches: [...this.entries.values()].map((entry) => ({
+        resourceKey: entry.resourceKey,
+        refCount: entry.refCount,
+        filePath: entry.filePath,
+      })),
+    };
+  }
+
+  retain(input: unknown): () => void {
+    const { ref, filePath, resourceKey } = this.normalizeWatchResource(input);
     const existing = this.entries.get(resourceKey);
     if (existing) {
       existing.refCount += 1;
@@ -74,6 +131,20 @@ export class ResourceWatchRegistry {
     };
     this.entries.set(resourceKey, entry);
     return () => this.release(resourceKey);
+  }
+
+  normalizeWatchResource(input: unknown) {
+    const ref = normalizeResourceRef(input);
+    if (ref.kind !== "local-file") {
+      throw new Error(`ResourceWatchRegistry only supports local-file watches for now: ${ref.kind}`);
+    }
+    const filePath = path.isAbsolute(ref.path) ? path.normalize(ref.path) : path.resolve(ref.path);
+    const normalizedRef = { kind: "local-file" as const, path: filePath };
+    return {
+      ref: normalizedRef,
+      filePath,
+      resourceKey: resourceKeyForRef(normalizedRef),
+    };
   }
 
   release(resourceKey: string): void {

@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const hanaFetch = vi.hoisted(() => vi.fn(async (path: string) => ({
-  json: async () => (path.endsWith('/watch') ? { ok: true, watchId: 'watch-1' } : { ok: true }),
+  json: async () => (path.endsWith('/subscribe') ? { ok: true, subscriptionId: 'sub-1' } : { ok: true }),
 })));
 
 vi.mock('../../hooks/use-hana-fetch', () => ({ hanaFetch }));
@@ -15,7 +15,7 @@ describe('resource-events', () => {
     hanaFetch.mockClear();
   });
 
-  it('shares one backend resource watch per local file and releases it after the last subscriber leaves', async () => {
+  it('shares one backend resource subscription per local file and releases it after the last subscriber leaves', async () => {
     const { retainLocalFileResourceWatch } = await import('../../services/resource-events');
 
     const releaseFirst = retainLocalFileResourceWatch('/tmp/note.md');
@@ -23,9 +23,12 @@ describe('resource-events', () => {
     await Promise.resolve();
 
     expect(hanaFetch).toHaveBeenCalledTimes(1);
-    expect(hanaFetch).toHaveBeenCalledWith('/api/resource-io/watch', expect.objectContaining({
+    expect(hanaFetch).toHaveBeenCalledWith('/api/resource-io/subscribe', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ resource: { kind: 'local-file', path: '/tmp/note.md' } }),
+      body: JSON.stringify({
+        purpose: 'resource-watch',
+        resources: [{ kind: 'local-file', path: '/tmp/note.md' }],
+      }),
     }));
 
     releaseFirst();
@@ -36,7 +39,7 @@ describe('resource-events', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(hanaFetch).toHaveBeenCalledWith('/api/resource-io/watch/watch-1', expect.objectContaining({
+    expect(hanaFetch).toHaveBeenCalledWith('/api/resource-io/subscriptions/sub-1', expect.objectContaining({
       method: 'DELETE',
     }));
   });

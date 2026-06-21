@@ -6,6 +6,29 @@ export function createResourceIoRoute(engine) {
   const route = new Hono();
   const releases = new Map();
 
+  route.post("/resource-io/subscribe", async (c) => {
+    try {
+      const body = await safeJson(c);
+      const subscribe = engine.subscribeResourceWatch?.(body);
+      if (!subscribe?.subscriptionId) {
+        return c.json({ error: "resource watch unavailable" }, 500);
+      }
+      return c.json({ ok: true, ...subscribe });
+    } catch (err) {
+      return c.json({ error: err?.message || String(err), ...(err?.code ? { code: err.code } : {}) }, err?.status || 400);
+    }
+  });
+
+  route.delete("/resource-io/subscriptions/:subscriptionId", (c) => {
+    const subscriptionId = c.req.param("subscriptionId");
+    const released = Boolean(engine.unsubscribeResourceWatch?.(subscriptionId));
+    return c.json({ ok: true, released });
+  });
+
+  route.get("/resource-io/watch-diagnostics", (c) => {
+    return c.json({ ok: true, diagnostics: engine.resourceWatchDiagnostics?.() || { subscriptions: 0, watches: [] } });
+  });
+
   route.post("/resource-io/watch", async (c) => {
     try {
       const body = await safeJson(c);

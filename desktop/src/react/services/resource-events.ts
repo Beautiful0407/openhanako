@@ -5,7 +5,7 @@ type ResourceRef =
 
 type WatchEntry = {
   refCount: number;
-  watchId: string | null;
+  subscriptionId: string | null;
   disposed: boolean;
   released: boolean;
   ready: Promise<void>;
@@ -31,20 +31,20 @@ export function retainResourceWatch(ref: ResourceRef): () => void {
 
   const entry: WatchEntry = {
     refCount: 1,
-    watchId: null,
+    subscriptionId: null,
     disposed: false,
     released: false,
     ready: Promise.resolve(),
   };
-  entry.ready = hanaFetch('/api/resource-io/watch', {
+  entry.ready = hanaFetch('/api/resource-io/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ resource: ref }),
+    body: JSON.stringify({ purpose: 'resource-watch', resources: [ref] }),
     throwOnHttpError: false,
   })
     .then(res => res.json())
     .then((data) => {
-      if (typeof data?.watchId === 'string') entry.watchId = data.watchId;
+      if (typeof data?.subscriptionId === 'string') entry.subscriptionId = data.subscriptionId;
       else console.warn('[resource-events] watch failed:', data?.error || ref);
       if (entry.disposed) releaseEntry(entry);
     })
@@ -72,9 +72,9 @@ function releaseResourceWatch(key: string): void {
 }
 
 function releaseEntry(entry: WatchEntry): void {
-  if (entry.released || !entry.watchId) return;
+  if (entry.released || !entry.subscriptionId) return;
   entry.released = true;
-  void hanaFetch(`/api/resource-io/watch/${encodeURIComponent(entry.watchId)}`, {
+  void hanaFetch(`/api/resource-io/subscriptions/${encodeURIComponent(entry.subscriptionId)}`, {
     method: 'DELETE',
     throwOnHttpError: false,
   }).catch((err) => {

@@ -3,6 +3,44 @@ import { describe, expect, it, vi } from "vitest";
 import { ResourceWatchRegistry } from "../lib/resource-io/resource-watch-registry.ts";
 
 describe("ResourceWatchRegistry", () => {
+  it("shares backend watches across subscriptions and reports diagnostics", () => {
+    const filePath = path.join("/workspace", "notes", "a.md");
+    const close = vi.fn();
+    const watchPath = vi.fn(() => ({ close }));
+    const registry = new ResourceWatchRegistry({
+      emitEvent: vi.fn(),
+      watchPath,
+    });
+
+    const first = registry.subscribe({
+      purpose: "preview",
+      sessionPath: "/sessions/a.jsonl",
+      resources: [{ kind: "local-file", path: filePath }],
+    });
+    const second = registry.subscribe({
+      purpose: "workspace-tree",
+      resources: [{ kind: "local-file", path: filePath }],
+    });
+
+    expect(first.subscriptionId).toEqual(expect.any(String));
+    expect(first.resourceKeys).toEqual([`local_fs:${filePath.replace(/\\/g, "/")}`]);
+    expect(watchPath).toHaveBeenCalledTimes(1);
+    expect(registry.diagnostics()).toMatchObject({
+      subscriptions: 2,
+      watches: [{
+        resourceKey: `local_fs:${filePath.replace(/\\/g, "/")}`,
+        refCount: 2,
+      }],
+    });
+
+    expect(registry.unsubscribe(first.subscriptionId)).toBe(true);
+    expect(close).not.toHaveBeenCalled();
+
+    expect(registry.unsubscribe(second.subscriptionId)).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(registry.diagnostics()).toMatchObject({ subscriptions: 0, watches: [] });
+  });
+
   it("emits a versioned resource.changed event after a watched local file changes", async () => {
     vi.useFakeTimers();
     const filePath = path.join("/workspace", "notes", "a.md");
