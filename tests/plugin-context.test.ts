@@ -50,17 +50,37 @@ describe("createPluginContext", () => {
       bus,
     } as any);
 
-    expect(ctx.appEvents.emit("markdown-cover-updated", { filePath: "/tmp/a.md" })).toBe(true);
+    expect(ctx.appEvents.emit("models-changed", { agentId: "agent-1" })).toBe(true);
     expect(ctx.appEvents.emit("bad", "payload")).toBe(false);
     expect(bus.emit).toHaveBeenCalledOnce();
     expect(bus.emit).toHaveBeenCalledWith({
       type: "app_event",
       event: {
-        type: "markdown-cover-updated",
-        payload: { filePath: "/tmp/a.md" },
+        type: "models-changed",
+        payload: { agentId: "agent-1" },
         source: "plugin:cover-plugin",
       },
     }, null);
+  });
+
+  it("exposes ResourceEventBus-backed change emission to plugins", () => {
+    const emitResourceChanged = vi.fn();
+    const ctx = createPluginContext({
+      pluginId: "resource-plugin",
+      pluginDir: "/plugins/resource-plugin",
+      dataDir: "/plugin-data/resource-plugin",
+      bus: { emit() {}, subscribe() {}, request() {}, hasHandler() {} },
+      emitResourceChanged,
+    } as any);
+    const input = {
+      changeType: "modified",
+      resourceKey: "local_fs:/tmp/a.md",
+      resource: { kind: "local-file", provider: "local_fs", path: "/tmp/a.md" },
+      source: "agent_tool",
+    };
+
+    expect(ctx.resourceEvents.changed(input)).toBe(true);
+    expect(emitResourceChanged).toHaveBeenCalledWith(input);
   });
 
   it("exposes server runtime scope when provided", () => {

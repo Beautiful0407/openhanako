@@ -2,8 +2,8 @@ import path from "path";
 import { describe, expect, it, vi } from "vitest";
 import { HanaEngine } from "../core/engine.ts";
 
-describe("HanaEngine ResourceEvent legacy projection", () => {
-  it("projects session-file-updated from ResourceEventBus instead of emitting it as an independent source", () => {
+describe("HanaEngine ResourceEvent emission", () => {
+  it("emits agent SessionFile writes as resource.changed without a legacy app-event projection", () => {
     const engine = Object.create(HanaEngine.prototype);
     const listener = vi.fn();
     engine._eventBus = null;
@@ -45,24 +45,10 @@ describe("HanaEngine ResourceEvent legacy projection", () => {
         filePath,
       },
     });
-    expect(events[1]).toMatchObject({
-      type: "app_event",
-      event: {
-        type: "session-file-updated",
-        payload: {
-          sessionPath,
-          filePath,
-          fileId: "sf_created",
-          origin: "agent_write",
-          operation: "created",
-          mtimeMs: 123,
-          size: 5,
-        },
-      },
-    });
+    expect(events).toHaveLength(1);
   });
 
-  it("does not project legacy session-file-updated for bare ResourceIO writes without SessionFile registration", () => {
+  it("emits bare ResourceIO resource.changed without a legacy app-event projection", () => {
     const engine = Object.create(HanaEngine.prototype);
     const listener = vi.fn();
     engine._eventBus = null;

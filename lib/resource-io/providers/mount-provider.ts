@@ -110,13 +110,15 @@ export class MountProvider {
     const resolved = this.resolveLocalMount(ref, "read");
     if (!resolved.mount.capabilities?.includes("watch")) throw capabilityDenied("watch", "mount");
     const normalizedRef = { kind: "mount" as const, mountId: ref.mountId, path: resolved.mountPath };
+    const isDirectory = safeIsDirectory(resolved.path);
     return {
       ref: normalizedRef,
       filePath: resolved.path,
+      isDirectory,
       resourceKey: resourceKeyForRef(normalizedRef),
       resource: mountResourceForPath(ref.mountId, resolved.mountPath, resolved.path),
       toResource: (changedPath: string) => {
-        const eventPath = path.isAbsolute(changedPath) ? path.normalize(changedPath) : path.join(resolved.path, changedPath);
+        const eventPath = normalizeWatchEventPath(resolved.path, changedPath, isDirectory);
         const mountPath = mountPathForNativePath(resolved.mountPath, resolved.path, eventPath);
         const eventRef = { kind: "mount" as const, mountId: ref.mountId, path: mountPath };
         return {
@@ -283,6 +285,21 @@ function realOrResolved(filePath: string): string {
         current = parent;
       }
     }
+  }
+}
+
+function normalizeWatchEventPath(rootPath: string, changedPath: string, rootIsDirectory: boolean): string {
+  if (!changedPath) return rootPath;
+  const value = String(changedPath);
+  if (path.isAbsolute(value)) return path.normalize(value);
+  return rootIsDirectory ? path.join(rootPath, value) : rootPath;
+}
+
+function safeIsDirectory(targetPath: string): boolean {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
   }
 }
 

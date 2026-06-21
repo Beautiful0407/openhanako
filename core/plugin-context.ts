@@ -4,9 +4,9 @@ import { createPluginConfigStore } from "./plugin-config.ts";
 
 /**
  * Create a PluginContext for a plugin.
- * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
+ * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, emitResourceChanged?: Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
  */
-export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, configSchema, logSink, runtimeContext }) {
+export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, emitResourceChanged, configSchema, logSink, runtimeContext }) {
   const config = createPluginConfigStore({ dataDir, schema: configSchema });
   const runtimeScope = runtimeContext ? {
     serverId: runtimeContext.serverId,
@@ -131,6 +131,14 @@ export function createPluginContext({ pluginId, pluginKey, source, pluginDir, da
     },
   });
 
+  const resourceEvents = Object.freeze({
+    changed(input: any = {}) {
+      if (typeof emitResourceChanged !== "function") return false;
+      emitResourceChanged(input);
+      return true;
+    },
+  });
+
   return {
     ...runtimeScope,
     pluginId,
@@ -142,6 +150,7 @@ export function createPluginContext({ pluginId, pluginKey, source, pluginDir, da
     sensitiveCapabilities: declaredSensitiveCapabilities,
     bus: pluginBus,
     appEvents,
+    resourceEvents,
     network: pluginNetwork,
     config,
     log,

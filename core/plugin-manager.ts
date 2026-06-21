@@ -232,6 +232,7 @@ export class PluginManager {
   declare _preferencesManager: any;
   declare _providerPlugins: any;
   declare _registerSessionFile: any;
+  declare _emitResourceChanged: any;
   declare _routeApps: any;
   declare _runtimeContext: any;
   declare _scanned: any;
@@ -255,6 +256,7 @@ export class PluginManager {
     appVersion,
     getSessionPath,
     registerSessionFile,
+    emitResourceChanged,
     slashRegistry,
     loadTimeoutMs,
     lifecycleTimeoutMs,
@@ -268,6 +270,7 @@ export class PluginManager {
     this._appVersion = appVersion || "0.0.0";
     this._getSessionPath = getSessionPath || (() => null);
     this._registerSessionFile = registerSessionFile || null;
+    this._emitResourceChanged = typeof emitResourceChanged === "function" ? emitResourceChanged : null;
     this._logSink = typeof logSink === "function" ? logSink : null;
     this._runtimeContext = runtimeContext || null;
     this._plugins = new Map();
@@ -686,6 +689,7 @@ export class PluginManager {
       bus: this._bus,
       accessLevel,
       registerSessionFile: this._registerSessionFile,
+      emitResourceChanged: this._emitResourceChanged,
       configSchema: entry.configSchema,
       logSink: this._logSink,
       runtimeContext: this._runtimeContext,

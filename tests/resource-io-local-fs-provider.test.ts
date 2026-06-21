@@ -80,4 +80,25 @@ describe("LocalFsProvider", () => {
     expect(deleted.resourceKey).toBe(`local_fs:${path.join(cwd, "copy.md").replace(/\\/g, "/")}`);
     expect(fs.existsSync(path.join(cwd, "copy.md"))).toBe(false);
   });
+
+  it("maps relative file watch names back to the watched file", async () => {
+    const { cwd, provider } = makeProvider();
+    const filePath = path.join(cwd, "notes", "a.md");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "alpha");
+
+    const target = provider.watchTarget({ kind: "local-file", path: "notes/a.md" });
+    const snapshot = target.toResource("a.md");
+
+    expect(snapshot).toMatchObject({
+      resourceKey: `local_fs:${filePath.replace(/\\/g, "/")}`,
+      resource: {
+        kind: "local-file",
+        provider: "local_fs",
+        path: filePath,
+        filePath,
+      },
+      filePath,
+    });
+  });
 });
