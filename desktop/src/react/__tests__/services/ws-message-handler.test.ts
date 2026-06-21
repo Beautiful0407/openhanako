@@ -2,9 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const previewRefreshMocks = vi.hoisted(() => ({
   changeOptions: { retryMissing: true, retryUnchanged: true },
-  catchUpOptions: { retryMissing: true },
-  refreshPreviewDocumentTarget: vi.fn(async () => undefined),
-  refreshOpenPreviewDocuments: vi.fn(async () => undefined),
   refreshOpenPreviewDocumentsForResourceChange: vi.fn(async () => undefined),
   markDeskTreeDirtyForResourceChange: vi.fn(),
 }));
@@ -19,10 +16,6 @@ vi.mock('../../hooks/use-stream-buffer', () => ({
 
 vi.mock('../../stores/session-actions', () => ({
   loadSessions: vi.fn(),
-}));
-
-vi.mock('../../stores/desk-actions', () => ({
-  loadDeskFiles: vi.fn(),
 }));
 
 vi.mock('../../stores/channel-actions', () => ({
@@ -40,9 +33,6 @@ vi.mock('../../services/app-event-actions', () => ({
 
 vi.mock('../../utils/preview-document-refresh', () => ({
   PREVIEW_DOCUMENT_CHANGE_REFRESH_OPTIONS: previewRefreshMocks.changeOptions,
-  PREVIEW_DOCUMENT_CATCH_UP_REFRESH_OPTIONS: previewRefreshMocks.catchUpOptions,
-  refreshPreviewDocumentTarget: previewRefreshMocks.refreshPreviewDocumentTarget,
-  refreshOpenPreviewDocuments: previewRefreshMocks.refreshOpenPreviewDocuments,
   refreshOpenPreviewDocumentsForResourceChange: previewRefreshMocks.refreshOpenPreviewDocumentsForResourceChange,
   markDeskTreeDirtyForResourceChange: previewRefreshMocks.markDeskTreeDirtyForResourceChange,
 }));
@@ -69,8 +59,6 @@ import { loadSessions } from '../../stores/session-actions';
 
 afterEach(() => {
   resetSessionRefreshSchedulerForTest();
-  previewRefreshMocks.refreshPreviewDocumentTarget.mockClear();
-  previewRefreshMocks.refreshOpenPreviewDocuments.mockClear();
   previewRefreshMocks.refreshOpenPreviewDocumentsForResourceChange.mockClear();
   previewRefreshMocks.markDeskTreeDirtyForResourceChange.mockClear();
   vi.useRealTimers();
@@ -495,11 +483,7 @@ describe('ws-message-handler session-scoped desktop events', () => {
         operations: ['created'],
       }),
     ]);
-    expect(previewRefreshMocks.refreshPreviewDocumentTarget).toHaveBeenCalledWith(
-      { kind: 'local-file', filePath: '/workspace/draft.md' },
-      previewRefreshMocks.changeOptions,
-    );
-    expect(previewRefreshMocks.refreshOpenPreviewDocuments).not.toHaveBeenCalled();
+    expect(previewRefreshMocks.refreshOpenPreviewDocumentsForResourceChange).not.toHaveBeenCalled();
   });
 
   it('content_block 文件事件把 resource envelope 同步进 session registry', () => {
@@ -992,7 +976,7 @@ describe('ws-message-handler turn_end side effects', () => {
     });
 
     expect(useStore.getState().inputFocusTrigger).toBe(1);
-    expect(previewRefreshMocks.refreshOpenPreviewDocuments).toHaveBeenCalledWith(previewRefreshMocks.catchUpOptions);
+    expect(previewRefreshMocks.refreshOpenPreviewDocumentsForResourceChange).not.toHaveBeenCalled();
   });
 
   it('background turn_end does not request input focus', () => {

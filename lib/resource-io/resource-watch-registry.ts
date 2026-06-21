@@ -15,6 +15,7 @@ type WatchResourceSnapshot = {
 type WatchTarget = WatchResourceSnapshot & {
   ref?: ResourceRef;
   filePath: string;
+  isDirectory?: boolean;
   toResource?: (changedPath: string) => WatchResourceSnapshot;
 };
 type ResolveWatchTarget = (resource: unknown) => WatchTarget;
@@ -39,6 +40,7 @@ type Entry = {
   resourceKey: string;
   resource: any;
   toResource?: (changedPath: string) => WatchResourceSnapshot;
+  isDirectory: boolean;
   refCount: number;
   handle: WatchHandle;
   timer: ReturnType<typeof setTimeout> | null;
@@ -130,7 +132,7 @@ export class ResourceWatchRegistry {
   }
 
   retain(input: unknown): () => void {
-    const { ref, filePath, resourceKey, resource, toResource } = this.normalizeWatchResource(input);
+    const { ref, filePath, resourceKey, resource, toResource, isDirectory } = this.normalizeWatchResource(input);
     const existing = this.entries.get(resourceKey);
     if (existing) {
       existing.refCount += 1;
@@ -143,6 +145,7 @@ export class ResourceWatchRegistry {
       resourceKey,
       resource,
       toResource,
+      isDirectory,
       refCount: 1,
       handle: this.watchPath(filePath, (changedPath) => this.schedule(entry, changedPath)),
       timer: null,
@@ -164,6 +167,7 @@ export class ResourceWatchRegistry {
       resourceKey: target.resourceKey,
       resource: target.resource,
       toResource: target.toResource,
+      isDirectory: target.isDirectory === true,
     };
   }
 
@@ -191,7 +195,7 @@ export class ResourceWatchRegistry {
 
   emitSnapshot(entry: Entry): void {
     if (!this.entries.has(entry.resourceKey)) return;
-    const eventPath = normalizeChangedPath(entry.filePath, entry.pendingPath);
+    const eventPath = normalizeChangedPath(entry.filePath, entry.pendingPath, entry.isDirectory);
     entry.pendingPath = null;
     const stat = this.statPath(eventPath);
     const snapshot = entry.toResource?.(eventPath) || localWatchSnapshot(eventPath);
@@ -229,14 +233,17 @@ function defaultResolveWatchTarget(input: unknown): WatchTarget {
   return {
     ref: { kind: "local-file", path: filePath },
     filePath,
+    isDirectory: safeIsDirectory(filePath),
     ...snapshot,
     toResource: localWatchSnapshot,
   };
 }
 
-function normalizeChangedPath(rootPath: string, changedPath?: string | null): string {
+function normalizeChangedPath(rootPath: string, changedPath?: string | null, rootIsDirectory = false): string {
   if (!changedPath) return rootPath;
-  return path.isAbsolute(changedPath) ? path.normalize(changedPath) : path.join(rootPath, changedPath);
+  const value = String(changedPath);
+  if (path.isAbsolute(value)) return path.normalize(value);
+  return rootIsDirectory ? path.join(rootPath, value) : rootPath;
 }
 
 function localWatchSnapshot(filePath: string): WatchResourceSnapshot {
@@ -253,13 +260,25 @@ function localWatchSnapshot(filePath: string): WatchResourceSnapshot {
 }
 
 function defaultWatchPath(targetPath: string, handler: (changedPath?: string | null) => void): WatchHandle {
-  const watcher = fs.watch(targetPath, { persistent: false }, (_eventType, filename) => {
-    const changedPath = filename
-      ? path.join(targetPath, String(filename))
-      : targetPath;
+  const rootPath = path.normalize(targetPath);
+  const rootIsDirectory = safeIsDirectory(rootPath);
+  const watcher = fs.watch(rootPath, { persistent: false }, (_eventType, filename) => {
+    let changedPath = rootPath;
+    if (rootIsDirectory && filename) {
+      const value = String(filename);
+      changedPath = path.isAbsolute(value) ? path.normalize(value) : path.join(rootPath, value);
+    }
     handler(changedPath);
   });
   return { close: () => watcher.close() };
+}
+
+function safeIsDirectory(targetPath: string): boolean {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function defaultStatPath(targetPath: string) {

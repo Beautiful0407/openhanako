@@ -19,6 +19,7 @@ type Provider = {
   watchTarget?: (ref: ResourceRef) => {
     ref?: ResourceRef;
     filePath: string;
+    isDirectory?: boolean;
     resourceKey: string;
     resource: any;
     toResource?: (changedPath: string) => { resourceKey: string; resource: any; filePath?: string };

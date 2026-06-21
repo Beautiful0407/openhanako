@@ -22,8 +22,8 @@ import { resolveCoverGalleryPresetImagePath } from "../../plugins/beautify/lib/c
 import { buildCoverStyleGuideForAgent } from "../../plugins/beautify/lib/cover-style-guide.ts";
 import { createSubmitContext, validateImageModelRef } from "../../plugins/image-gen/lib/image-task-runner.ts";
 import { DEFAULT_ACTIVITY_EXECUTION_TIMEOUT_MS, activityTimeoutPatch } from "../../lib/desk/activity-store.ts";
-import { emitAppEvent } from "../app-events.ts";
 import { t } from "../../lib/i18n.ts";
+import { resourceKeyForRef } from "../../lib/resource-io/resource-refs.ts";
 import { realPath, isSensitivePath } from "../utils/path-security.ts";
 import { readAuthPrincipal } from "../http/capability-guard.ts";
 import { jsonRouteError } from "../http/route-errors.ts";
@@ -629,12 +629,27 @@ export function createDeskRoute(engine, hub) {
     return err;
   }
 
-  function emitMarkdownCoverUpdated(targetInfo) {
-    if (targetInfo.target) {
-      emitAppEvent(engine, "markdown-cover-updated", { target: targetInfo.target });
-    } else {
-      emitAppEvent(engine, "markdown-cover-updated", { filePath: targetInfo.filePath });
-    }
+  function emitMarkdownCoverResourceChanged(targetInfo) {
+    const filePath = targetInfo?.filePath;
+    if (typeof filePath !== "string" || !filePath) return;
+    const stat = fs.statSync(filePath);
+    engine.emitResourceChanged({
+      changeType: "modified",
+      resourceKey: resourceKeyForRef({ kind: "local-file", path: filePath }),
+      resource: {
+        kind: "local-file",
+        provider: "local_fs",
+        path: filePath,
+        filePath,
+        ...(targetInfo.target ? { target: targetInfo.target } : {}),
+      },
+      version: {
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+      },
+      source: "api",
+      reason: "markdown_cover",
+    });
   }
 
   async function validateBeautifyGenerationAccess(body) {
@@ -686,7 +701,7 @@ export function createDeskRoute(engine, hub) {
         markdownFilePath: targetInfo.filePath,
         generatedFilePath: image.filePath,
       });
-      emitMarkdownCoverUpdated(targetInfo);
+      emitMarkdownCoverResourceChanged(targetInfo);
       return c.json({
         ok: true,
         ...(targetInfo.target ? { target: targetInfo.target } : {}),
@@ -721,7 +736,7 @@ export function createDeskRoute(engine, hub) {
         markdownFilePath: targetInfo.filePath,
         generatedFilePath: imageFilePath,
       });
-      emitMarkdownCoverUpdated(targetInfo);
+      emitMarkdownCoverResourceChanged(targetInfo);
       return c.json({
         ok: true,
         ...(targetInfo.target ? { target: targetInfo.target } : {}),

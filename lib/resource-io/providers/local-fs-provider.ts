@@ -156,13 +156,15 @@ export class LocalFsProvider {
   watchTarget(ref: ResourceRef | unknown) {
     const filePath = this.resolvePath(ref);
     this.assertAllowed(filePath, "read");
+    const isDirectory = safeIsDirectory(filePath);
     return {
       ref: { kind: "local-file" as const, path: filePath },
       filePath,
+      isDirectory,
       resourceKey: localResourceKey(filePath),
       resource: this.resourceForPath(filePath),
       toResource: (changedPath: string) => {
-        const eventPath = path.isAbsolute(changedPath) ? path.normalize(changedPath) : path.join(filePath, changedPath);
+        const eventPath = normalizeWatchEventPath(filePath, changedPath, isDirectory);
         return {
           resourceKey: localResourceKey(eventPath),
           resource: this.resourceForPath(eventPath),
@@ -252,6 +254,21 @@ function versionFromStat(stat: fs.Stats): ResourceVersion {
     mtimeMs: stat.mtimeMs,
     size: stat.isDirectory() ? null : stat.size,
   };
+}
+
+function normalizeWatchEventPath(rootPath: string, changedPath: string, rootIsDirectory: boolean): string {
+  if (!changedPath) return rootPath;
+  const value = String(changedPath);
+  if (path.isAbsolute(value)) return path.normalize(value);
+  return rootIsDirectory ? path.join(rootPath, value) : rootPath;
+}
+
+function safeIsDirectory(targetPath: string): boolean {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function searchText(rootPath: string, query: string, guard: Guard | null) {

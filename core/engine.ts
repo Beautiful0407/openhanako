@@ -671,6 +671,15 @@ export class HanaEngine {
     }
     return this._resourceEventBus;
   }
+  emitResourceChanged(input) {
+    return this._resourceEvents().changed(input);
+  }
+  emitResourceDeleted(input) {
+    return this._resourceEvents().deleted(input);
+  }
+  emitResourceRenamed(input) {
+    return this._resourceEvents().renamed(input);
+  }
   _emitResourceChangedForSessionFileOperation(file, entry: any = {}) {
     const origin = typeof file?.origin === "string" ? file.origin : entry?.origin;
     if (origin !== "agent_write" && origin !== "agent_edit") return;
@@ -705,39 +714,6 @@ export class HanaEngine {
       operation,
       sessionFile: file,
     } as any);
-  }
-  _projectLegacySessionFileUpdated(event) {
-    if (event?.type !== "resource.changed") return;
-    if (event.source !== "agent_tool") return;
-    const fileId = event.fileId || event.sessionFile?.id || event.sessionFile?.fileId || null;
-    if (!fileId && !event.sessionFile) return;
-
-    const origin = typeof event.origin === "string"
-      ? event.origin
-      : typeof event.reason === "string"
-        ? event.reason
-        : event.sessionFile?.origin;
-    if (origin !== "agent_write" && origin !== "agent_edit") return;
-
-    const sessionPath = event.sessionPath || event.sessionFile?.sessionPath || null;
-    const filePath = event.resource?.filePath || event.filePath || event.sessionFile?.filePath || null;
-    if (!sessionPath || !filePath) return;
-
-    const operation = event.operation || event.sessionFile?.operation || (
-      Array.isArray(event.sessionFile?.operations)
-        ? event.sessionFile.operations[event.sessionFile.operations.length - 1]
-        : null
-    );
-    this._emitAppEvent("session-file-updated", {
-      sessionPath,
-      filePath,
-      ...(fileId ? { fileId } : {}),
-      origin,
-      ...(operation ? { operation } : {}),
-      ...(event.version?.mtimeMs !== undefined ? { mtimeMs: event.version.mtimeMs } : {}),
-      ...(event.version?.size !== undefined ? { size: event.version.size } : {}),
-      ...(event.sessionFile ? { sessionFile: event.sessionFile } : {}),
-    });
   }
   _sessionFileOptionsWithLocator(options: any = {}) {
     const next = { ...(options || {}) };
@@ -2074,6 +2050,7 @@ export class HanaEngine {
       appVersion,
       getSessionPath: () => this.currentSessionPath,
       registerSessionFile: (entry) => this.registerSessionFile(entry),
+      emitResourceChanged: (input) => this.emitResourceChanged(input),
       slashRegistry: this._slashSystem?.registry ?? null,
       loadTimeoutMs: undefined,
       lifecycleTimeoutMs: undefined,
@@ -2429,7 +2406,6 @@ export class HanaEngine {
         try { fn(event, sessionPath); } catch (err) { moduleLog.warn(`event listener threw for ${event?.type}: ${err?.message}`); }
       }
     }
-    this._projectLegacySessionFileUpdated(event);
   }
 
   emitEvent(event, sessionPath) { this._emitEvent(event, sessionPath); }

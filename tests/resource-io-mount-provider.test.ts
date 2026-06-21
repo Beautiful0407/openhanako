@@ -108,6 +108,29 @@ describe("MountProvider", () => {
     });
   });
 
+  it("maps relative file watch names back to the watched mount file", () => {
+    const { mountRoot, provider } = setup();
+    const filePath = path.join(mountRoot, "docs", "a.md");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "alpha");
+    const realFilePath = fs.realpathSync(filePath);
+
+    const target = provider.watchTarget({ kind: "mount", mountId: "mount_local", path: "docs/a.md" });
+    const snapshot = target.toResource("a.md");
+
+    expect(snapshot).toMatchObject({
+      resourceKey: "mount:mount_local:docs/a.md",
+      resource: {
+        kind: "mount",
+        mountId: "mount_local",
+        path: "docs/a.md",
+        provider: "mount",
+        filePath: realFilePath,
+      },
+      filePath: realFilePath,
+    });
+  });
+
   it("rejects path escapes and unsupported remote mounts explicitly", async () => {
     const { provider } = setup();
 
