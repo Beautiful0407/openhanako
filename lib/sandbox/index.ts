@@ -135,6 +135,7 @@ export function createSandboxedTools(cwd, customTools, {
     getExternalReadPaths,
     getSessionPath,
     emitEvent,
+    resolveSessionFile,
   });
   const resourceOps = createResourceIoToolOperations({
     cwd,

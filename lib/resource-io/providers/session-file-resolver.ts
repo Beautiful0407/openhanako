@@ -98,10 +98,11 @@ export class SessionFileResolverProvider {
         status: 400,
       });
     }
-    const entry = this.sessionFiles.get(ref.fileId, {
-      sessionId: ref.sessionId || null,
-      sessionPath: ref.sessionPath || null,
-    });
+    const options = {
+      ...(ref.sessionId ? { sessionId: ref.sessionId } : {}),
+      ...(ref.sessionPath ? { sessionPath: ref.sessionPath } : {}),
+    };
+    const entry = this.sessionFiles.get(ref.fileId, options);
     if (!entry) {
       throw new ResourceIOError(`session file not found: ${ref.fileId}`, {
         code: "resource_not_found",

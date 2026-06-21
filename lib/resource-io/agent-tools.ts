@@ -250,7 +250,7 @@ function wrapResourceIoTool(tool, options) {
           const materialized = await options.resourceIO.materialize({
             kind: "session-file",
             fileId: target.fileId,
-            ...(target.sessionPath ? { sessionPath: target.sessionPath } : {}),
+            sessionPath: target.sessionPath || options.getSessionPath?.() || null,
           });
           return tool.execute(toolCallId, paramsForLocalTarget(params, materialized.filePath), ...rest);
         }

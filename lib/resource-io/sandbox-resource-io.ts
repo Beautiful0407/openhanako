@@ -24,6 +24,7 @@ type Options = {
   getSessionPath?: () => string | null;
   emitEvent?: (event: object, sessionPath?: string | null) => void;
   sessionFiles?: any;
+  resolveSessionFile?: (fileId: string, options?: { sessionId?: string | null; sessionPath?: string | null }) => any;
   resourceService?: any;
   studioId?: string | null;
   urlMaterializeRoot?: string;
@@ -42,6 +43,7 @@ export function createSandboxResourceIO({
   getSessionPath,
   emitEvent,
   sessionFiles,
+  resolveSessionFile,
   resourceService,
   studioId,
   urlMaterializeRoot,
@@ -87,8 +89,9 @@ export function createSandboxResourceIO({
     local_fs: localFsProviderFactory({ cwd, guard: resourceAccessGuard }),
     url: new UrlProvider({ materializeRoot: urlMaterializeRoot }),
   };
-  if (sessionFiles) {
-    providers.session_file = new SessionFileResolverProvider({ sessionFiles });
+  const sessionFileStore = sessionFiles || (resolveSessionFile ? { get: resolveSessionFile } : null);
+  if (sessionFileStore) {
+    providers.session_file = new SessionFileResolverProvider({ sessionFiles: sessionFileStore });
   }
   if (resourceService) {
     providers.resource = new ResourceProvider({ resourceService });
