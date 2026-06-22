@@ -105,7 +105,7 @@ describe("provider-compat/kimi", () => {
     });
   });
 
-  it("normalizes root anyOf tool parameters into Moonshot MFJS form", () => {
+  it("keeps root tool parameters object-shaped while removing Kimi-incompatible root anyOf", () => {
     const schemaOnlyKimiModel = {
       id: "kimi-for-coding",
       provider: "kimi-coding",
@@ -145,20 +145,10 @@ describe("provider-compat/kimi", () => {
     expect(result.tools).not.toBe(payload.tools);
     expect(payload.tools[0].function.parameters).toBe(officeReadParameters);
     expect(payload.tools[0].function.parameters).toHaveProperty("type", "object");
-    expect(parameters).not.toHaveProperty("type");
-    expect(parameters).not.toHaveProperty("properties");
-    expect(parameters.anyOf).toEqual([
-      {
-        type: "object",
-        properties: officeReadParameters.properties,
-        required: ["resource"],
-      },
-      {
-        type: "object",
-        properties: officeReadParameters.properties,
-        required: ["filePath"],
-      },
-    ]);
+    expect(parameters).toHaveProperty("type", "object");
+    expect(parameters).toHaveProperty("properties", officeReadParameters.properties);
+    expect(parameters).not.toHaveProperty("anyOf");
+    expect(parameters.description).toContain("required field sets: resource; filePath");
   });
 
   it("normalizes nested anyOf schemas without changing other providers", () => {

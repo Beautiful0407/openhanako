@@ -19,6 +19,7 @@ import {
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 const MFJS_PARENT_ANNOTATION_KEYS = new Set(["description", "default"]);
+const ROOT_ANY_OF_ARGUMENT_GUIDANCE_PREFIX = "Arguments must satisfy one of these required field sets:";
 
 export function matches(model) {
   if (!model || typeof model !== "object") return false;
@@ -108,6 +109,45 @@ function mergeSchemaForAnyOf(shared, branch) {
   return merged;
 }
 
+function formatRequiredFieldSets(anyOf) {
+  if (!Array.isArray(anyOf)) return null;
+
+  const sets = anyOf.map((item) => {
+    if (!isPlainObject(item)) return null;
+    const keys = Object.keys(item);
+    if (keys.length !== 1 || !Array.isArray(item.required)) return null;
+    const required = item.required.filter((field) => typeof field === "string");
+    if (required.length !== item.required.length || required.length === 0) return null;
+    return required.join(", ");
+  });
+
+  if (sets.some((set) => !set)) return null;
+  return sets.join("; ");
+}
+
+function appendSchemaDescription(description, addition) {
+  if (!addition) return description;
+  if (typeof description !== "string" || description.trim().length === 0) return addition;
+  if (description.includes(addition)) return description;
+  return `${description.trim()} ${addition}`;
+}
+
+function normalizeFunctionParametersRootAnyOf(schema) {
+  if (!Array.isArray(schema.anyOf) || schema.type !== "object") return schema;
+
+  const { anyOf, ...rootObject } = schema;
+  const requiredSets = formatRequiredFieldSets(anyOf);
+  if (!requiredSets) return rootObject;
+
+  return {
+    ...rootObject,
+    description: appendSchemaDescription(
+      rootObject.description,
+      `${ROOT_ANY_OF_ARGUMENT_GUIDANCE_PREFIX} ${requiredSets}.`,
+    ),
+  };
+}
+
 function distributeTypeIntoAnyOf(schema) {
   if (!Array.isArray(schema.anyOf) || !hasOwn(schema, "type")) return schema;
 
@@ -130,7 +170,7 @@ function distributeTypeIntoAnyOf(schema) {
   };
 }
 
-function normalizeSchemaForMoonshotMfjs(schema) {
+function normalizeSchemaForMoonshotMfjs(schema, options: Record<string, any> = {}) {
   if (Array.isArray(schema)) {
     let changed = false;
     const next = schema.map((item) => {
@@ -152,6 +192,11 @@ function normalizeSchemaForMoonshotMfjs(schema) {
   }
 
   const candidate = changed ? next : schema;
+  if (options.functionParametersRoot) {
+    const normalizedRoot = normalizeFunctionParametersRootAnyOf(candidate);
+    return normalizedRoot === candidate ? candidate : normalizedRoot;
+  }
+
   const distributed = distributeTypeIntoAnyOf(candidate);
   return distributed === candidate ? candidate : distributed;
 }
@@ -165,7 +210,9 @@ function normalizeToolsForMoonshotMfjs(tools) {
     if (!fn || !hasOwn(fn, "parameters")) return tool;
 
     const parameters = fn.parameters;
-    const normalizedParameters = normalizeSchemaForMoonshotMfjs(parameters);
+    const normalizedParameters = normalizeSchemaForMoonshotMfjs(parameters, {
+      functionParametersRoot: true,
+    });
     if (normalizedParameters === parameters) return tool;
 
     changed = true;
