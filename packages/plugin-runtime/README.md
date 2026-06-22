@@ -169,11 +169,29 @@ search, including filename search through provider options; `resource.write`
 covers `write`, `writeExpectedVersion`, `edit`, `mkdir`, `delete`, `copy`,
 `rename`, `move`, and `trash`;
 `resource.materialize` is required before asking the host for a concrete local
-path; `resource.watch` resolves watch targets. URL resources are read-only.
+path; `resource.watch` covers backend watch subscriptions through
+`ctx.resources.watch()` / `ctx.resources.subscribe()`. URL resources are read-only.
 Resource mutations run with `principal.kind = "plugin"` and the current plugin id
 so ResourceIO audit logs can identify the source. Plugin-generated artifacts can
 still be written under `ctx.dataDir` and returned with `stageFile()`, but user
 resource edits should go through `ctx.resources`.
+
+Lifecycle plugins should release resource watches through the lifecycle
+disposable helper:
+
+```ts
+export default definePlugin({
+  async onload(ctx, { register }) {
+    const watch = ctx.resources.watch({ kind: 'mount', mountId: 'docs', path: '' });
+    register(watch.unsubscribe);
+    register(ctx.bus.subscribe((event) => {
+      if (event.type === 'resource.changed' && watch.resourceKeys.includes(event.resourceKey)) {
+        ctx.log.info('resource changed', event.resourceKey);
+      }
+    }, { types: ['resource.changed', 'resource.deleted', 'resource.renamed'] }));
+  },
+});
+```
 
 Resource refs are identity objects. A `mount`, `session-file`, `resource`, or
 `url` input should not be converted to a guessed local path by plugin code.
@@ -430,7 +448,7 @@ export const { id, displayName, authType, runtime, capabilities } = provider;
 
 Keep chat and media capabilities explicit. Media-only providers should use `chat.projection = "none"`, and CLI providers must use structured argument bindings rather than shell command strings.
 
-Legacy image-generation plugins may still use `media-gen:register-adapter` as a compatibility execution path, but new plugins should not treat the `media-gen:*` namespace as the public provider API. Add a ProviderPlugin with `capabilities.media.*`, then keep adapter registration only for custom protocol execution until the host exposes a stable Adapter Plugin API.
+Legacy image-generation plugins may still use `media-gen:register-adapter` as a compatibility execution path. New plugins and Agent-generated scaffolds must not call `media-gen:*`; declare a ProviderPlugin with `capabilities.media.*` for discovery, then use the stable media helpers or the formal Adapter Plugin API when that execution surface is available.
 
 ## Pi SDK extensions
 

@@ -132,6 +132,15 @@ describe("createPluginContext", () => {
         trashId: "trash_1",
       })),
     };
+    const resourceWatch = {
+      subscribe: vi.fn((input) => ({
+        subscriptionId: input.resource ? "sub-one" : "sub-many",
+        resourceKeys: input.resource
+          ? ["mount:docs:"]
+          : ["mount:docs:", "local_fs:/workspace"],
+      })),
+      unsubscribe: vi.fn(() => true),
+    };
     const ctx = createPluginContext({
       pluginId: "resource-plugin",
       pluginDir: "/plugins/resource-plugin",
@@ -139,6 +148,7 @@ describe("createPluginContext", () => {
       bus: { emit() {}, subscribe() {}, request() {}, hasHandler() {} },
       capabilities: ["resource.read", "resource.search", "resource.materialize", "resource.watch"],
       resourceIO,
+      resourceWatch,
       runtimeContext: {
         userId: "user_1",
         studioId: "studio_1",
@@ -172,6 +182,14 @@ describe("createPluginContext", () => {
     await ctx.resources.search({ kind: "mount", mountId: "docs", path: "" }, { query: "note" });
     await ctx.resources.materialize({ kind: "session-file", fileId: "sf_1" });
     ctx.resources.resolveWatchTarget({ kind: "mount", mountId: "docs", path: "" });
+    const watchHandle = ctx.resources.watch(
+      { kind: "mount", mountId: "docs", path: "" },
+      { purpose: "preview" },
+    );
+    const subscribeHandle = ctx.resources.subscribe([
+      { kind: "mount", mountId: "docs", path: "" },
+      { kind: "local-file", path: "/workspace" },
+    ]);
 
     expect(readResult.content.toString("utf-8")).toBe("hello");
     expect(resourceIO.stat).toHaveBeenCalledWith(
@@ -199,6 +217,28 @@ describe("createPluginContext", () => {
       { kind: "mount", mountId: "docs", path: "" },
       expectedPluginContext("plugin:resource-plugin:watch"),
     );
+    expect(resourceWatch.subscribe).toHaveBeenCalledWith({
+      resource: { kind: "mount", mountId: "docs", path: "" },
+      purpose: "preview",
+      sessionPath: "/sessions/current.jsonl",
+    });
+    expect(resourceWatch.subscribe).toHaveBeenCalledWith({
+      resources: [
+        { kind: "mount", mountId: "docs", path: "" },
+        { kind: "local-file", path: "/workspace" },
+      ],
+      purpose: "plugin:resource-plugin:subscribe",
+      sessionPath: "/sessions/current.jsonl",
+    });
+    expect(watchHandle).toMatchObject({
+      subscriptionId: "sub-one",
+      resourceKeys: ["mount:docs:"],
+    });
+    expect(watchHandle.unsubscribe()).toBe(true);
+    expect(watchHandle.unsubscribe()).toBe(false);
+    expect(subscribeHandle.close()).toBe(true);
+    expect(resourceWatch.unsubscribe).toHaveBeenCalledWith("sub-one");
+    expect(resourceWatch.unsubscribe).toHaveBeenCalledWith("sub-many");
     await expect(ctx.resources.write({ kind: "local-file", path: "/workspace/note.md" }, "updated"))
       .rejects.toMatchObject({
         code: "PLUGIN_RESOURCE_CAPABILITY_NOT_DECLARED",
@@ -230,6 +270,8 @@ describe("createPluginContext", () => {
       { kind: "local-file", path: "/workspace/new.md" },
       { namespace: "plugin-test" },
     );
+    expect(() => writeCtx.resources.watch({ kind: "local-file", path: "/workspace/new.md" }))
+      .toThrow(/resource.watch/);
     expect(resourceIO.rename).toHaveBeenCalledWith(
       { kind: "local-file", path: "/workspace/old.md" },
       { kind: "local-file", path: "/workspace/new.md" },

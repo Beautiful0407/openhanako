@@ -129,6 +129,20 @@ export interface HanaPluginResourceMutationOptions {
   emit?: boolean;
 }
 
+export interface HanaPluginResourceWatchOptions {
+  purpose?: string | null;
+  sessionRef?: HanaSessionRef | { sessionPath?: string | null; path?: string | null } | null;
+  /** @deprecated Prefer sessionId/sessionRef on the invocation context. */
+  sessionPath?: string | null;
+}
+
+export interface HanaResourceWatchSubscription {
+  subscriptionId: string;
+  resourceKeys: string[];
+  unsubscribe(): boolean;
+  close(): boolean;
+}
+
 export interface HanaPluginResources {
   stat(ref: HanaResourceRef | Record<string, unknown>): Promise<HanaResourceStat>;
   read(ref: HanaResourceRef | Record<string, unknown>): Promise<HanaResourceReadResult>;
@@ -144,7 +158,9 @@ export interface HanaPluginResources {
   rename(from: HanaResourceRef | Record<string, unknown>, to: HanaResourceRef | Record<string, unknown>, options?: HanaPluginResourceMutationOptions): Promise<HanaResourceMoveResult>;
   move(from: HanaResourceRef | Record<string, unknown>, to: HanaResourceRef | Record<string, unknown>, options?: HanaPluginResourceMutationOptions): Promise<HanaResourceMoveResult>;
   trash(ref: HanaResourceRef | Record<string, unknown>, trashOptions?: HanaResourceTrashOptions, options?: HanaPluginResourceMutationOptions): Promise<HanaResourceTrashResult>;
-  resolveWatchTarget?(ref: HanaResourceRef | Record<string, unknown>): HanaResourceWatchTarget;
+  watch(ref: HanaResourceRef | Record<string, unknown>, options?: HanaPluginResourceWatchOptions): HanaResourceWatchSubscription;
+  subscribe(resources: Array<HanaResourceRef | Record<string, unknown>>, options?: HanaPluginResourceWatchOptions): HanaResourceWatchSubscription;
+  resolveWatchTarget?(ref: HanaResourceRef | Record<string, unknown>, options?: HanaPluginResourceWatchOptions): HanaResourceWatchTarget;
 }
 
 export interface HanaExecutionBoundary {

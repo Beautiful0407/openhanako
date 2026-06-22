@@ -137,6 +137,9 @@ describe("plugin SDK examples and docs", () => {
     expect(runtimeTypes).toContain("writeExpectedVersion");
     expect(runtimeTypes).toContain("HanaResourceMoveResult");
     expect(runtimeTypes).toContain("HanaResourceTrashResult");
+    expect(runtimeTypes).toContain("HanaResourceWatchSubscription");
+    expect(runtimeTypes).toContain("watch(");
+    expect(runtimeTypes).toContain("subscribe(");
     expect(runtimeTypes).toContain("HanaToolSessionPermission");
     expect(runtimeTypes).toContain("sessionPermission");
     expect(runtimeTypes).toContain("getPluginRequestContext");
@@ -147,6 +150,7 @@ describe("plugin SDK examples and docs", () => {
     expect(runtimeReadme).toContain("modes[].inputLimits.referenceImages");
     expect(runtimeReadme).toContain("sessionPermission");
     expect(runtimeReadme).toContain("getPluginRequestContext");
+    expect(runtimeReadme).toContain("ctx.resources.watch()");
     expect(sdkTypes).toContain("api:");
     expect(sdkTypes).toContain("fetch(");
     expect(sdkTypes).toContain("resources:");
@@ -222,8 +226,11 @@ describe("plugin SDK examples and docs", () => {
       expect(provider).toContain("inputLimits: { referenceImages: { min: 0, max: 0 } }");
       expect(provider).not.toContain("supportsEdit: true");
       expect(provider).toContain("file_glob");
+      expect(provider).not.toContain("media-gen");
       expect(readme).toContain("provider contribution");
+      expect(readme).toContain("capabilities.media.*");
       expect(readme).toContain("structured argument bindings");
+      expect(readme).not.toContain("media-gen");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

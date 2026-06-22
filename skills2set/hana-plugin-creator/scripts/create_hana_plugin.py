@@ -1171,7 +1171,8 @@ def create_readme(
         "## File and resource rules",
         "",
         "- The sample note tool writes plugin-owned output under `ctx.dataDir`, then returns it through `stageFile()` as SessionFile media.",
-        "- If you add a feature that reads or edits user files, use `ctx.resources` with ResourceRef inputs and declare the matching `resource.read`, `resource.search`, `resource.write`, `resource.materialize`, or `resource.watch` capability.",
+        "- If you add a feature that reads, edits, or watches user files, use `ctx.resources` with ResourceRef inputs and declare the matching `resource.read`, `resource.search`, `resource.write`, `resource.materialize`, or `resource.watch` capability.",
+        "- Use `ctx.resources.watch()` / `ctx.resources.subscribe()` for backend resource watches, release the returned handle, and filter `resource.changed` / `resource.deleted` / `resource.renamed` bus events by `resourceKeys`.",
         "- Browser iframe code may open, pick, or request access to resources through `hana.resources.*`, but real file reads and writes belong in server-side plugin tools, routes, or lifecycle code.",
         "- Do not treat `SessionFile`, mount, URL, or future remote resources as host-local paths. Use `ctx.resources.materialize(ref)` only for libraries that require a concrete execution path, and write back through ResourceIO explicitly.",
     ])
@@ -1185,6 +1186,7 @@ def create_readme(
             "This plugin requires full-access because provider contributions can affect model discovery and runtime execution.",
             "The sample provider is media-only: `chat.projection = \"none\"` keeps it out of chat model selectors.",
             "CLI-backed providers must use structured argument bindings and output contracts; do not replace them with shell command strings.",
+            "Do not call legacy media generation EventBus namespaces from new provider plugins; declare `providers/*.js` with `capabilities.media.*`, then use stable media helpers or the formal Adapter Plugin API when available.",
         ])
     return "\n".join(lines)
 

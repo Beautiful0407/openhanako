@@ -2058,6 +2058,10 @@ export class HanaEngine {
       registerSessionFile: (entry) => this.registerSessionFile(entry),
       emitResourceChanged: (input) => this.emitResourceChanged(input),
       resourceIO: () => this.getResourceIO(),
+      resourceWatch: {
+        subscribe: (input) => this.subscribeResourceWatch(input),
+        unsubscribe: (subscriptionId) => this.unsubscribeResourceWatch(subscriptionId),
+      },
       slashRegistry: this._slashSystem?.registry ?? null,
       loadTimeoutMs: undefined,
       lifecycleTimeoutMs: undefined,

@@ -2,11 +2,25 @@ import path from "path";
 import { serializeSessionFile } from "../lib/session-files/session-file-response.ts";
 import { createPluginConfigStore } from "./plugin-config.ts";
 
+type PluginWatchOptions = {
+  purpose?: unknown;
+  sessionPath?: unknown;
+  sessionRef?: {
+    sessionPath?: unknown;
+    path?: unknown;
+  } | null;
+};
+
+type PluginResourceWatchResult = {
+  subscriptionId?: unknown;
+  resourceKeys?: unknown;
+};
+
 /**
  * Create a PluginContext for a plugin.
- * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, emitResourceChanged?: Function, resourceIO?: object | Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
+ * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, emitResourceChanged?: Function, resourceIO?: object | Function, resourceWatch?: object | Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
  */
-export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, emitResourceChanged, resourceIO = null, configSchema, logSink, runtimeContext }) {
+export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, emitResourceChanged, resourceIO = null, resourceWatch = null, configSchema, logSink, runtimeContext }) {
   const config = createPluginConfigStore({ dataDir, schema: configSchema });
   const runtimeScope = runtimeContext ? {
     serverId: runtimeContext.serverId,
@@ -38,6 +52,7 @@ export function createPluginContext({ pluginId, pluginKey, source, pluginDir, da
   const pluginResources = createPluginResources({
     pluginId,
     resourceIO,
+    resourceWatch,
     capabilities: declaredCapabilities,
     sensitiveCapabilities: declaredSensitiveCapabilities,
     runtimeScope,
@@ -282,13 +297,29 @@ function normalizeSessionRef(value, fallback: any = {}) {
   };
 }
 
-function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCapabilities, runtimeScope }) {
+function createPluginResources({ pluginId, resourceIO, resourceWatch, capabilities, sensitiveCapabilities, runtimeScope }) {
   const getResourceIO = () => {
     const resolved = typeof resourceIO === "function" ? resourceIO() : resourceIO;
     if (resolved && typeof resolved === "object") return resolved;
     throw pluginResourceError(
       "PLUGIN_RESOURCE_IO_UNAVAILABLE",
       "Plugin ResourceIO is unavailable in this runtime",
+      { pluginId },
+    );
+  };
+  const getResourceWatch = () => {
+    const resolved = typeof resourceWatch === "function" ? resourceWatch() : resourceWatch;
+    if (
+      resolved
+      && typeof resolved === "object"
+      && typeof resolved.subscribe === "function"
+      && typeof resolved.unsubscribe === "function"
+    ) {
+      return resolved;
+    }
+    throw pluginResourceError(
+      "PLUGIN_RESOURCE_WATCH_UNAVAILABLE",
+      "Plugin ResourceIO watch subscription is unavailable in this runtime",
       { pluginId },
     );
   };
@@ -330,6 +361,14 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
       },
     };
   };
+  const watchOptions = (operation, options: PluginWatchOptions = {}) => ({
+    purpose: textOrNull(options?.purpose) || `plugin:${pluginId}:${operation}`,
+    sessionPath: textOrNull(options?.sessionPath)
+      || textOrNull(options?.sessionRef?.sessionPath)
+      || textOrNull(options?.sessionRef?.path)
+      || textOrNull(runtimeScope?.sessionPath)
+      || null,
+  });
 
   return Object.freeze({
     async stat(ref, options: any = {}) {
@@ -388,6 +427,24 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
       assertCapability("resource.write");
       return getResourceIO().trash(ref, trashOptions, operationOptions("trash", options));
     },
+    watch(ref, options: PluginWatchOptions = {}) {
+      assertCapability("resource.watch");
+      const watcher = getResourceWatch();
+      const result = watcher.subscribe({
+        resource: ref,
+        ...watchOptions("watch", options),
+      });
+      return createPluginResourceWatchHandle(pluginId, watcher, result);
+    },
+    subscribe(resources, options: PluginWatchOptions = {}) {
+      assertCapability("resource.watch");
+      const watcher = getResourceWatch();
+      const result = watcher.subscribe({
+        resources: normalizeWatchResources(pluginId, resources),
+        ...watchOptions("subscribe", options),
+      });
+      return createPluginResourceWatchHandle(pluginId, watcher, result);
+    },
     resolveWatchTarget(ref, options: any = {}) {
       assertCapability("resource.watch");
       const io = getResourceIO();
@@ -400,6 +457,44 @@ function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCa
       }
       return io.resolveWatchTarget(ref, operationOptions("watch", options));
     },
+  });
+}
+
+function normalizeWatchResources(pluginId, resources) {
+  if (!Array.isArray(resources) || resources.length === 0) {
+    throw pluginResourceError(
+      "PLUGIN_RESOURCE_WATCH_INVALID_RESOURCES",
+      "Plugin ResourceIO subscribe requires a non-empty resources array",
+      { pluginId },
+    );
+  }
+  return resources;
+}
+
+function createPluginResourceWatchHandle(pluginId, watcher, result: PluginResourceWatchResult = {}) {
+  const subscriptionId = textOrNull(result?.subscriptionId);
+  if (!subscriptionId) {
+    throw pluginResourceError(
+      "PLUGIN_RESOURCE_WATCH_INVALID_SUBSCRIPTION",
+      "Plugin ResourceIO watch subscription did not return a subscriptionId",
+      { pluginId },
+    );
+  }
+  const resourceKeys = Array.isArray(result.resourceKeys)
+    ? result.resourceKeys.filter((key) => typeof key === "string" && key)
+    : [];
+  let closed = false;
+  const unsubscribe = () => {
+    if (closed) return false;
+    const released = watcher.unsubscribe(subscriptionId);
+    closed = true;
+    return released !== false;
+  };
+  return Object.freeze({
+    subscriptionId,
+    resourceKeys,
+    unsubscribe,
+    close: unsubscribe,
   });
 }
 

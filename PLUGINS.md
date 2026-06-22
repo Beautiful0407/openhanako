@@ -253,7 +253,9 @@ export async function execute(input, ctx) {
 }
 ```
 
-`resource.read` 覆盖 `stat`、`read`、`list`；`resource.search` 覆盖搜索，包括 provider 选项里的文件名搜索；`resource.write` 覆盖 `write`、`writeExpectedVersion`、`edit`、`mkdir`、`delete`、`copy`、`rename`、`move`、`trash`；`resource.materialize` 用于把资源实体化成本机路径；`resource.watch` 用于解析监听目标。URL resource 保持只读。插件自己生成的文件仍然可以写到 `ctx.dataDir`，再通过 `stageFile()` 返回；用户资源读写不要直接用本地路径和 `fs.writeFileSync`。
+`resource.read` 覆盖 `stat`、`read`、`list`；`resource.search` 覆盖搜索，包括 provider 选项里的文件名搜索；`resource.write` 覆盖 `write`、`writeExpectedVersion`、`edit`、`mkdir`、`delete`、`copy`、`rename`、`move`、`trash`；`resource.materialize` 用于把资源实体化成本机路径；`resource.watch` 覆盖 `ctx.resources.watch()` / `ctx.resources.subscribe()` 后端监听订阅。URL resource 保持只读。插件自己生成的文件仍然可以写到 `ctx.dataDir`，再通过 `stageFile()` 返回；用户资源读写不要直接用本地路径和 `fs.writeFileSync`。
+
+`ctx.resources.watch(ref)` 用于单个资源，`ctx.resources.subscribe([refA, refB])` 用于一组资源，返回 `{ subscriptionId, resourceKeys, unsubscribe, close }`。生命周期插件应把 `unsubscribe` 交给 `register()`，短任务应在 `finally` 中释放。资源变化仍通过插件 bus 的 `resource.changed` / `resource.deleted` / `resource.renamed` 事件到达，消费侧按 `resourceKeys` 过滤后再刷新或重新读取。
 
 ResourceIO 是用户资源的唯一权限入口。`local-file`、`mount`、`session-file`、`resource`、`url` 都是资源身份，不等于插件能拿到宿主本机路径。`stageFile()` 只用于插件生成物进入 `SessionFile` 交付链路，不用于修改用户源文件。`ctx.dataDir` 和插件包内 `assets/` 是插件自有存储，可以使用 raw `fs`；工作区、挂载、URL、SessionFile 输入不能套用这个例外。第三方库必须吃本机路径时，用 `ctx.resources.materialize(ref)`，写回仍然要显式走 ResourceIO，而不是把 materialized 文件当源文件直接改。
 
@@ -554,7 +556,7 @@ CLI provider 必须使用结构化参数绑定。不要拼 shell 字符串；Han
 
 媒体 Adapter 负责执行某个 `protocolId` 的 `submit` / `query` / 下载流程。只注册 Adapter 不等于注册供应商；没有 Provider capability 的模型不会自然出现在供应商管理、默认媒体模型选择、媒体 helper 发现结果里。
 
-旧 `media-gen:*` 事件接口仍然保留给历史图片生成插件兼容，例如 `media-gen:register-adapter`、`media-gen:submit-image`、`media-gen:list-adapters`。新插件不要继续依赖这些旧命名空间。迁移方向是：
+旧 `media-gen:*` 事件接口仍然保留给历史图片生成插件兼容，例如 `media-gen:register-adapter`、`media-gen:submit-image`、`media-gen:list-adapters`。新插件和 Agent 生成的模板不要调用这些旧命名空间；新建插件必须先通过 `providers/*.js` 声明 Provider capability，再使用稳定媒体 helper 或正式 Adapter Plugin API。迁移方向是：
 
 ```text
 ProviderPlugin capabilities.media.*
@@ -569,7 +571,7 @@ MediaAdapterRegistry 按 protocolId 选择 Adapter
 UniversalMediaManager 统一任务、占位、轮询、SessionFile 回填
 ```
 
-如果插件需要全新媒体协议，先声明 Provider capability，并为该 `protocolId` 提供 Adapter。正式 Adapter Plugin API 尚未稳定前，内置或受信插件可以继续使用旧 `media-gen:register-adapter` 作为过渡，但要把它视为兼容层。
+如果插件需要全新媒体协议，先声明 Provider capability，并为该 `protocolId` 提供 Adapter。正式 Adapter Plugin API 尚未稳定前，内置或受信插件可以继续使用旧 `media-gen:register-adapter` 作为过渡，但要把它视为兼容层，不能把它写进新插件脚手架或新 Agent 指南。
 
 ### Configuration（配置 schema）
 

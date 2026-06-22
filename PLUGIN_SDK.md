@@ -206,7 +206,9 @@ export async function execute(input, ctx) {
 }
 ```
 
-`resource.read` covers `stat`, `read`, and `list`; `resource.search` covers search, including filename search with provider options; `resource.write` covers `write`, `writeExpectedVersion`, `edit`, `mkdir`, `delete`, `copy`, `rename`, `move`, and `trash`; `resource.materialize` is required before asking the host for a concrete local path; `resource.watch` covers watch-target resolution. URL resources are read-only and write attempts fail at the provider boundary. Plugin ResourceIO mutations run with `principal.kind = "plugin"` so audit logs and resource events can identify the plugin source. Plugin-generated artifacts may still be written under `ctx.dataDir` and returned with `stageFile()`, but user resource edits should not use raw local path writes.
+`resource.read` covers `stat`, `read`, and `list`; `resource.search` covers search, including filename search with provider options; `resource.write` covers `write`, `writeExpectedVersion`, `edit`, `mkdir`, `delete`, `copy`, `rename`, `move`, and `trash`; `resource.materialize` is required before asking the host for a concrete local path; `resource.watch` covers backend watch subscriptions through `ctx.resources.watch()` and `ctx.resources.subscribe()`. URL resources are read-only and write attempts fail at the provider boundary. Plugin ResourceIO mutations run with `principal.kind = "plugin"` so audit logs and resource events can identify the plugin source. Plugin-generated artifacts may still be written under `ctx.dataDir` and returned with `stageFile()`, but user resource edits should not use raw local path writes.
+
+Use `ctx.resources.watch(ref)` for a single resource and `ctx.resources.subscribe([refA, refB])` for a set. Both return `{ subscriptionId, resourceKeys, unsubscribe, close }`; lifecycle plugins should pass `unsubscribe` to `register()`, and short-lived tools should release it in `finally`. Resource events arrive through the normal plugin bus as `resource.changed`, `resource.deleted`, or `resource.renamed`; filter by `resourceKeys` before refreshing.
 
 Treat ResourceIO as the only user-resource authority. `local-file`, `mount`, `session-file`, `resource`, and `url` refs are identity inputs, not promises that the plugin can see a host-local path. `stageFile()` is for plugin-generated artifacts that should be delivered as `SessionFile` media. `ctx.dataDir` and packaged `assets/` are plugin-owned storage; workspace, mount, URL, and SessionFile inputs are not. When a library needs a real path, call `ctx.resources.materialize(ref)` and keep the write-back path explicit through ResourceIO rather than editing the materialized file as if it were the source.
 
@@ -432,7 +434,7 @@ const provider = defineProvider({
 export const { id, displayName, authType, runtime, capabilities } = provider;
 ```
 
-Provider declarations own model discovery and capability metadata. Media adapters own protocol execution. A plugin that only calls legacy `media-gen:register-adapter` can still provide an executor during the compatibility window, but it should also contribute a ProviderPlugin with `capabilities.media.*`; otherwise the model will not appear in provider settings, default media model selectors, or `listMediaProviders()`.
+Provider declarations own model discovery and capability metadata. Media adapters own protocol execution. A plugin that only calls legacy `media-gen:register-adapter` can still provide an executor during the compatibility window, but it should also contribute a ProviderPlugin with `capabilities.media.*`; otherwise the model will not appear in provider settings, default media model selectors, or `listMediaProviders()`. Agent-generated plugins and new templates must not call `media-gen:*`; use `providers/*.js`, the media helpers, and the formal Adapter Plugin API once that execution surface is available.
 
 Migration rule for older image-generation plugins:
 
