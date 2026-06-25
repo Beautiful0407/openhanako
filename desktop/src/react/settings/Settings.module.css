@@ -38,6 +38,7 @@
 :global(body.paper-texture) .settings-textarea,
 :global(body.paper-texture) .settings-folder-browse,
 :global(body.paper-texture) .settings-folder-clear,
+:global(body.paper-texture) .capability-row,
 :global(body.paper-texture) .skills-list-block,
 :global(body.paper-texture) .cml-picker,
 :global(body.paper-texture) .cml-picker-group,
@@ -2242,18 +2243,28 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-16);
-    padding: 5px var(--space-12);
-    background: transparent;
-    transition: background var(--duration-fast);
+    padding: 0.65rem var(--space-16);
+    background-color: var(--bg-card);
 }
 
-.capability-row:hover {
-    background: var(--overlay-light);
+.capability-row + .capability-row {
+    border-top: 1px solid var(--border);
+}
+
+.capability-row:first-child {
+    border-top-left-radius: var(--radius-card, 8px);
+    border-top-right-radius: var(--radius-card, 8px);
+}
+
+.capability-row:last-child {
+    border-bottom-left-radius: var(--radius-card, 8px);
+    border-bottom-right-radius: var(--radius-card, 8px);
 }
 
 /* 缩进子项（如 allow_github_fetch） */
 .capability-row-nested {
-    padding-left: calc(var(--space-12) + 1rem);
+    padding-left: calc(var(--space-16) + 1rem);
+    background: var(--bg-hover, color-mix(in srgb, var(--bg-card) 90%, transparent));
 }
 
 .capability-row-label {
