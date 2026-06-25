@@ -1343,7 +1343,14 @@ export class ProviderRegistry {
     }
 
     if (persistAsLocalPlugin) {
-      userConfig[providerId] = this._writeLocalProviderPlugin(providerId, nextProvider, existingPlugin);
+      const overlay = this._writeLocalProviderPlugin(providerId, nextProvider, existingPlugin);
+      // 确保 models 始终写入 catalog，即使本地插件写磁盘失败也不丢数据
+      userConfig[providerId] = {
+        ...overlay,
+        ...(Array.isArray(nextProvider.models) ? { models: nextProvider.models } : {}),
+        ...(nextProvider.base_url ? { base_url: nextProvider.base_url } : {}),
+        ...(nextProvider.api ? { api: nextProvider.api } : {}),
+      };
     } else {
       validateProviderModels(providerId, nextProvider.models, { baseUrl: nextProvider.base_url });
       userConfig[providerId] = nextProvider;
