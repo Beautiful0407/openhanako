@@ -858,6 +858,11 @@ describe("saveProvider", () => {
     expect(catalog["new-provider"]).toEqual({
       api_key: "sk-new",
       headers: { "X-API-Key": "header-secret" },
+      base_url: "https://new.api.com/v1",
+      api: "openai-completions",
+      models: [
+        { id: "new-chat", name: "New Chat", reasoning: true, defaultThinkingLevel: "max" },
+      ],
     });
 
     const entry = reg.get("new-provider");
