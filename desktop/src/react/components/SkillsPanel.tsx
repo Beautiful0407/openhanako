@@ -163,7 +163,7 @@ export function SkillsPanel() {
     setLoading(true);
     try {
       const [skillsRes, bundlesRes] = await Promise.all([
-        hanaFetch(`/api/skills?agentId=${encodeURIComponent(agentId)}`),
+        hanaFetch(`/api/skills?agentId=${encodeURIComponent(agentId)}&runtime=1`),
         hanaFetch(`/api/skills/bundles?agentId=${encodeURIComponent(agentId)}`),
       ]);
       const data = await readJsonObject(skillsRes);
@@ -217,8 +217,10 @@ export function SkillsPanel() {
 
   const visibleSkills = skillsList.filter(skill => !skill.hidden);
   const userSkills = visibleSkills.filter(skill => skill.source !== 'external');
+  const manageableSkills = userSkills.filter(skill => skill.source !== 'workspace' && skill.managedBy !== 'workspace' && skill.managedBy !== 'plugin');
   const canManage = selectedTabId === ALL_SKILLS_TAB;
-  const hasLoadedTreeItems = userSkills.length > 0 || skillBundles.length > 0;
+  const treeSkills = canManage ? manageableSkills : userSkills;
+  const hasLoadedTreeItems = treeSkills.length > 0 || skillBundles.length > 0;
   const shouldShowInitialLoading = loading && !(loadedAgentId === selectedAgentId && hasLoadedTreeItems);
   const bundleExpandedState = selectedAgentId ? (bundleExpandedByAgent[selectedAgentId] || {}) : {};
   const setSelectedBundleExpandedState = useCallback((next: Record<string, boolean>) => {
@@ -653,13 +655,13 @@ export function SkillsPanel() {
 
             {shouldShowInitialLoading ? (
               <div className={styles.empty}>{t('status.loading')}</div>
-            ) : userSkills.length === 0 && skillBundles.length === 0 ? (
+            ) : treeSkills.length === 0 && skillBundles.length === 0 ? (
               <div className={styles.empty}>{t('settings.skills.noUser')}</div>
             ) : (
               <SkillBundleTree
                 mode={canManage ? 'manage' : 'agent'}
                 bundles={skillBundles}
-                skills={userSkills}
+                skills={treeSkills}
                 nameHints={{}}
                 emptyText={t('settings.skills.noUser')}
                 onDeleteSkill={canManage ? deleteSkill : undefined}

@@ -486,6 +486,10 @@ export class Agent {
     this._fileTool = createFileTool({
       getCwd: () => this._cb?.getCwd?.() || this.agentDir,
       getSessionPath: () => this._cb?.getCurrentSessionPath?.(),
+      getAuthorizedFolders: (sessionPath) => {
+        const effectiveSessionPath = sessionPath || this._cb?.getCurrentSessionPath?.();
+        return this._cb?.getEngine?.()?.getSessionAuthorizedFolders?.(effectiveSessionPath) || [];
+      },
       resolveSessionFile: (fileId, options = {}) => this._cb?.getEngine?.()?.getSessionFile?.(fileId, options) || null,
       registerSessionFile: (entry) => this._cb?.registerSessionFile?.(entry),
     });

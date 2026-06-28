@@ -80,6 +80,22 @@ function bundleEnabledState(bundle: SkillBundleInfo, skillByName: Map<string, Sk
   };
 }
 
+function skillConfigurable(skill: SkillInfo) {
+  if (skill.configurable === false) return false;
+  if (skill.readonly) return false;
+  if (skill.source === 'workspace') return false;
+  if (skill.managedBy === 'workspace' || skill.managedBy === 'plugin') return false;
+  return true;
+}
+
+function skillDeletable(skill: SkillInfo) {
+  if (skill.deletable === false) return false;
+  if (skill.readonly) return false;
+  if (skill.source === 'workspace') return false;
+  if (skill.managedBy === 'workspace' || skill.managedBy === 'plugin') return false;
+  return true;
+}
+
 export function SkillBundleTree({
   mode,
   bundles,
@@ -302,11 +318,11 @@ export function SkillBundleTree({
                         key={`${bundle.id}:${skillName}`}
                         skill={skill}
                         nameHint={nameHints[skillName]}
-                        deletable={canManage}
-                        draggable={canManage}
-                        onDragStart={startSkillDrag}
-                        onDelete={canManage ? onDeleteSkill : undefined}
-                        onToggle={mode === 'agent' ? onToggleSkill : undefined}
+                        deletable={canManage && skillDeletable(skill)}
+                        draggable={canManage && skillDeletable(skill)}
+                        onDragStart={canManage && skillDeletable(skill) ? startSkillDrag : undefined}
+                        onDelete={canManage && skillDeletable(skill) ? onDeleteSkill : undefined}
+                        onToggle={mode === 'agent' && skillConfigurable(skill) ? onToggleSkill : undefined}
                         onDragOver={(event) => { if (canManage) event.preventDefault(); }}
                         onDrop={(event) => dropOnBundle(event, bundle, index)}
                         className={`${styles['skill-bundle-child-row']}${highlightedSkillName === skillName ? ` ${styles['skill-install-highlight']}` : ''}`}
@@ -344,11 +360,11 @@ export function SkillBundleTree({
               key={skill.name}
               skill={skill}
               nameHint={nameHints[skill.name]}
-              deletable={canManage}
-              draggable={canManage}
-              onDragStart={startSkillDrag}
-              onDelete={canManage ? onDeleteSkill : undefined}
-              onToggle={mode === 'agent' ? onToggleSkill : undefined}
+              deletable={canManage && skillDeletable(skill)}
+              draggable={canManage && skillDeletable(skill)}
+              onDragStart={canManage && skillDeletable(skill) ? startSkillDrag : undefined}
+              onDelete={canManage && skillDeletable(skill) ? onDeleteSkill : undefined}
+              onToggle={mode === 'agent' && skillConfigurable(skill) ? onToggleSkill : undefined}
               className={highlightedSkillName === skill.name ? styles['skill-install-highlight'] : ''}
               highlighted={highlightedSkillName === skill.name}
             />

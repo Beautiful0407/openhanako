@@ -80,6 +80,12 @@ describe('SkillsPanel', () => {
     render(<SkillsPanel />);
     await flushMicrotasks(4);
 
+    expect(fetchMock.mock.calls.some((call) =>
+      typeof call[0] === 'string'
+      && call[0].includes('/api/skills?agentId=agent-a')
+      && call[0].includes('runtime=1'),
+    )).toBe(true);
+
     fireEvent.click(screen.getByRole('tab', { name: 'Mao' }));
 
     const file = new File(['skill'], 'new-skill.skill');
