@@ -70,6 +70,17 @@ describe("desktop main GPU startup contract", () => {
     expect(onboardingCreateIndex).toBeLessThan(onboardingCreatedIndex);
   });
 
+  it("creates the main BrowserWindow through the Windows diagnostic wrapper", () => {
+    const source = fs.readFileSync(MAIN_PATH, "utf-8");
+    const helperIndex = source.indexOf("function createBrowserWindowWithDiagnostics");
+    const mainCreateIndex = source.indexOf('createBrowserWindowWithDiagnostics("main", opts, { windowsMinimalRetry: true })');
+    const directCreateIndex = source.indexOf("mainWindow = new BrowserWindow(opts)");
+
+    expect(helperIndex).toBeGreaterThan(-1);
+    expect(mainCreateIndex).toBeGreaterThan(helperIndex);
+    expect(directCreateIndex).toBe(-1);
+  });
+
   it("listens for GPU child process exits instead of deprecated GPU crash hooks", () => {
     const source = fs.readFileSync(MAIN_PATH, "utf-8");
 

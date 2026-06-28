@@ -575,6 +575,58 @@ function applyWindowThemeColors(win, rawTheme) {
   }
 }
 
+function summarizeBrowserWindowOptionsForDiagnostics(label, opts) {
+  const webPreferences = opts?.webPreferences || {};
+  return {
+    label,
+    platform: process.platform,
+    width: opts?.width,
+    height: opts?.height,
+    minWidth: opts?.minWidth,
+    minHeight: opts?.minHeight,
+    hasIcon: !!opts?.icon,
+    frame: opts?.frame !== false,
+    hasBackgroundColor: typeof opts?.backgroundColor === "string",
+    titleBarStyle: opts?.titleBarStyle || null,
+    show: opts?.show === true,
+    webPreferences: {
+      hasPreload: !!webPreferences.preload,
+      contextIsolation: webPreferences.contextIsolation !== false,
+      nodeIntegration: webPreferences.nodeIntegration === true,
+    },
+  };
+}
+
+function createBrowserWindowWithDiagnostics(label, opts, { windowsMinimalRetry = false } = {}) {
+  try {
+    return new BrowserWindow(opts);
+  } catch (err) {
+    const summary = summarizeBrowserWindowOptionsForDiagnostics(label, opts);
+    console.error(`[desktop] ${label} BrowserWindow creation failed:`, {
+      message: redactMainLogText(err?.message || String(err)),
+      options: summary,
+    });
+    if (process.platform !== "win32" || !windowsMinimalRetry) throw err;
+
+    const retryOpts = {
+      width: opts?.width || 960,
+      height: opts?.height || 820,
+      minWidth: opts?.minWidth,
+      minHeight: opts?.minHeight,
+      title: opts?.title || "HanaAgent",
+      show: opts?.show === true,
+      ...(opts?.x != null ? { x: opts.x } : {}),
+      ...(opts?.y != null ? { y: opts.y } : {}),
+      webPreferences: opts?.webPreferences,
+    };
+    console.warn(`[desktop] retrying ${label} BrowserWindow with minimal Windows options`, {
+      original: summary,
+      retry: summarizeBrowserWindowOptionsForDiagnostics(`${label}:minimal`, retryOpts),
+    });
+    return new BrowserWindow(retryOpts);
+  }
+}
+
 function applyTransparentWindowBackground(win) {
   if (!win || win.isDestroyed()) return;
   try {
@@ -1768,7 +1820,7 @@ function createMainWindow() {
     opts.y = saved.y;
   }
 
-  mainWindow = new BrowserWindow(opts);
+  mainWindow = createBrowserWindowWithDiagnostics("main", opts, { windowsMinimalRetry: true });
   attachRendererLaunchDiagnostics(mainWindow, "main");
   applyWindowThemeColors(mainWindow, initialTheme);
 
