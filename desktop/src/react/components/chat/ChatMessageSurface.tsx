@@ -79,6 +79,7 @@ export const ChatMessageSurface = memo(function ChatMessageSurface({
   const boxSelection = useBoxSelection({ messageElementsRef, orderedIds, sessionPath, active });
   const handleCaptureSelection = useCallback((event: ReactMouseEvent<HTMLDivElement> | ReactKeyboardEvent<HTMLDivElement>) => {
     if (!active) return;
+    if ('button' in event && event.button === 2) return;
     scheduleCaptureChatSelection(sessionPath, getSelectionCommitAnchorRect(event.nativeEvent));
   }, [active, sessionPath]);
   const handleShellPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
